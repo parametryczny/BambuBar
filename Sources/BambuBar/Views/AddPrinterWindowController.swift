@@ -15,6 +15,14 @@ final class AddPrinterWindowController: NSWindowController {
     private let importButton = NSButton(title: "", target: nil, action: nil)
     private let titleLabel = NSTextField(labelWithString: "")
     private let saveButton = NSButton(title: "", target: nil, action: nil)
+    private let cancelButton = NSButton(title: "", target: nil, action: nil)
+    private let infoLabel = NSTextField(wrappingLabelWithString: "")
+    private let detectedLabel = NSTextField(labelWithString: "")
+    private let bambuStudioLabel = NSTextField(labelWithString: "Bambu Studio:")
+    private let nameLabel = NSTextField(labelWithString: "")
+    private let hostLabel = NSTextField(labelWithString: "")
+    private let serialLabel = NSTextField(labelWithString: "")
+    private let codeLabel = NSTextField(labelWithString: "")
     private var subscription: AnyCancellable?
     private var popupPrinters: [DiscoveredPrinter] = []
     private var editingSerial: String?
@@ -35,56 +43,34 @@ final class AddPrinterWindowController: NSWindowController {
 
     private func buildInterface() {
         guard let content = window?.contentView else { return }
-        let settings = AppSettings.shared
         titleLabel.font = .systemFont(ofSize: 22, weight: .bold)
-        titleLabel.stringValue = settings.text("Dodaj drukarkę", "Add printer")
-        let storageDescription = AccessCodeStore.usesKeychain
-            ? settings.text("Kod zostanie zapisany w pęku kluczy macOS.", "The code is stored in macOS Keychain.")
-            : settings.text("Kod zostanie zapisany w lokalnych ustawieniach tego Maca.", "The code is stored in this Mac's local preferences.")
-        let info = NSTextField(wrappingLabelWithString: settings.text(
-            "Wybierz urządzenie znalezione w Wi‑Fi albo wpisz dane ręcznie. ",
-            "Select a device found on Wi-Fi or enter its details manually. "
-        ) + storageDescription)
-        info.textColor = .secondaryLabelColor
+        infoLabel.textColor = .secondaryLabelColor
 
-        printerPopup.addItem(withTitle: settings.text("Szukam drukarek w sieci…", "Searching for printers…"))
         printerPopup.target = self
         printerPopup.action = #selector(selectedPrinterChanged)
         scanButton.target = self
         scanButton.action = #selector(scan)
-        scanButton.title = settings.text("Skanuj ponownie", "Scan again")
         importButton.target = self
         importButton.action = #selector(importFromBambuStudio)
-        importButton.title = settings.text("Importuj drukarki i kody", "Import printers and codes")
-        importButton.toolTip = settings.text(
-            "Dopasuj wykryte drukarki i pobierz ich kody z lokalnej konfiguracji Bambu Studio",
-            "Match detected printers and load their codes from the local Bambu Studio configuration"
-        )
         let discoveryRow = NSStackView(views: [printerPopup, scanButton])
         discoveryRow.orientation = .horizontal
         discoveryRow.spacing = 8
         printerPopup.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        configure(nameField, placeholder: settings.text("np. Drukarka w warsztacie", "e.g. Workshop printer"))
-        configure(hostField, placeholder: "np. 192.168.1.50")
-        configure(serialField, placeholder: settings.text("Numer seryjny drukarki", "Printer serial number"))
-        configure(codeField, placeholder: "PIN / Access Code")
         pasteCodeButton.target = self
         pasteCodeButton.action = #selector(pasteAccessCode)
-        pasteCodeButton.title = settings.text("Wklej", "Paste")
-        pasteCodeButton.toolTip = settings.text("Wklej kod dostępu ze schowka", "Paste access code from clipboard")
         let codeRow = NSStackView(views: [codeField, pasteCodeButton])
         codeRow.orientation = .horizontal
         codeRow.spacing = 8
         codeField.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         let form = NSGridView(views: [
-            [label(settings.text("Wykryte:", "Detected:")), discoveryRow],
-            [label("Bambu Studio:"), importButton],
-            [label(settings.text("Nazwa:", "Name:")), nameField],
-            [label(settings.text("Adres IP:", "IP address:")), hostField],
-            [label(settings.text("Numer seryjny:", "Serial number:")), serialField],
-            [label(settings.text("Kod dostępu:", "Access code:")), codeRow]
+            [detectedLabel, discoveryRow],
+            [bambuStudioLabel, importButton],
+            [nameLabel, nameField],
+            [hostLabel, hostField],
+            [serialLabel, serialField],
+            [codeLabel, codeRow]
         ])
         form.rowSpacing = 10
         form.columnSpacing = 12
@@ -94,15 +80,16 @@ final class AddPrinterWindowController: NSWindowController {
         statusLabel.textColor = .systemRed
         statusLabel.lineBreakMode = .byWordWrapping
         statusLabel.maximumNumberOfLines = 2
-        let cancel = NSButton(title: settings.text("Anuluj", "Cancel"), target: self, action: #selector(cancel))
+        cancelButton.target = self
+        cancelButton.action = #selector(cancel)
         saveButton.target = self
         saveButton.action = #selector(savePrinter)
         saveButton.keyEquivalent = "\r"
-        let buttons = NSStackView(views: [NSView(), cancel, saveButton])
+        let buttons = NSStackView(views: [NSView(), cancelButton, saveButton])
         buttons.orientation = .horizontal
         buttons.spacing = 8
 
-        let stack = NSStackView(views: [titleLabel, info, form, statusLabel, buttons])
+        let stack = NSStackView(views: [titleLabel, infoLabel, form, statusLabel, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 14
@@ -113,19 +100,46 @@ final class AddPrinterWindowController: NSWindowController {
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -22),
             stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -20),
-            info.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            infoLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
             form.widthAnchor.constraint(equalTo: stack.widthAnchor),
             statusLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
             buttons.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
+        localize()
     }
 
-    private func configure(_ field: NSTextField, placeholder: String) {
-        field.placeholderString = placeholder
-    }
-
-    private func label(_ value: String) -> NSTextField {
-        NSTextField(labelWithString: value)
+    /// Applies every language-dependent string. Called on each open so the form follows the
+    /// current language even though the window is built once and reused.
+    private func localize() {
+        let settings = AppSettings.shared
+        titleLabel.stringValue = editingSerial == nil
+            ? settings.text("Dodaj drukarkę", "Add printer")
+            : settings.text("Edytuj drukarkę", "Edit printer")
+        let storageDescription = AccessCodeStore.usesKeychain
+            ? settings.text("Kod zostanie zapisany w pęku kluczy macOS.", "The code is stored in macOS Keychain.")
+            : settings.text("Kod zostanie zapisany w lokalnych ustawieniach tego Maca.", "The code is stored in this Mac's local preferences.")
+        infoLabel.stringValue = settings.text(
+            "Wybierz urządzenie znalezione w Wi‑Fi albo wpisz dane ręcznie. ",
+            "Select a device found on Wi-Fi or enter its details manually. "
+        ) + storageDescription
+        scanButton.title = settings.text("Skanuj ponownie", "Scan again")
+        importButton.title = settings.text("Importuj drukarki i kody", "Import printers and codes")
+        importButton.toolTip = settings.text(
+            "Dopasuj wykryte drukarki i pobierz ich kody z lokalnej konfiguracji Bambu Studio",
+            "Match detected printers and load their codes from the local Bambu Studio configuration"
+        )
+        pasteCodeButton.title = settings.text("Wklej", "Paste")
+        pasteCodeButton.toolTip = settings.text("Wklej kod dostępu ze schowka", "Paste access code from clipboard")
+        detectedLabel.stringValue = settings.text("Wykryte:", "Detected:")
+        nameLabel.stringValue = settings.text("Nazwa:", "Name:")
+        hostLabel.stringValue = settings.text("Adres IP:", "IP address:")
+        serialLabel.stringValue = settings.text("Numer seryjny:", "Serial number:")
+        codeLabel.stringValue = settings.text("Kod dostępu:", "Access code:")
+        cancelButton.title = settings.text("Anuluj", "Cancel")
+        nameField.placeholderString = settings.text("np. Drukarka w warsztacie", "e.g. Workshop printer")
+        hostField.placeholderString = settings.text("np. 192.168.1.50", "e.g. 192.168.1.50")
+        serialField.placeholderString = settings.text("Numer seryjny drukarki", "Printer serial number")
+        codeField.placeholderString = "PIN / Access Code"
     }
 
     private func refreshDiscovery() {
@@ -232,8 +246,8 @@ final class AddPrinterWindowController: NSWindowController {
     func prepareForAdding() {
         let settings = AppSettings.shared
         editingSerial = nil
+        localize()
         window?.title = settings.text("Dodaj drukarkę Bambu Lab", "Add Bambu Lab printer")
-        titleLabel.stringValue = settings.text("Dodaj drukarkę", "Add printer")
         saveButton.title = settings.text("Dodaj", "Add")
         codeField.placeholderString = "PIN / Access Code"
         printerPopup.isEnabled = true
@@ -249,8 +263,8 @@ final class AddPrinterWindowController: NSWindowController {
     func prepareForEditing(_ printer: SavedPrinter) {
         let settings = AppSettings.shared
         editingSerial = printer.serial
+        localize()
         window?.title = settings.text("Edytuj drukarkę \(printer.name)", "Edit printer \(printer.name)")
-        titleLabel.stringValue = settings.text("Edytuj drukarkę", "Edit printer")
         saveButton.title = settings.text("Zapisz", "Save")
         nameField.stringValue = printer.name
         hostField.stringValue = printer.host
