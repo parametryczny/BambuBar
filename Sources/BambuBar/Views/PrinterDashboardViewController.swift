@@ -217,6 +217,10 @@ final class PrinterDashboardViewController: NSViewController {
                         guard let self, let host = self.store.printers.first(where: { $0.serial == printer.serial })?.host else { return }
                         self.copyIP(host)
                     },
+                    onRemove: { [weak self] in
+                        guard let self, let current = self.store.printers.first(where: { $0.serial == printer.serial }) else { return }
+                        self.confirmRemove(current)
+                    },
                     onMove: { [weak self] sourceSerial, targetSerial, insertAfter in
                         self?.store.movePrinter(serial: sourceSerial, relativeTo: targetSerial, insertAfter: insertAfter)
                     }
@@ -306,6 +310,27 @@ final class PrinterDashboardViewController: NSViewController {
     private func copyIP(_ host: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(host, forType: .string)
+    }
+
+    private func confirmRemove(_ printer: SavedPrinter) {
+        let settings = AppSettings.shared
+        let alert = NSAlert()
+        alert.messageText = settings.text("Usunąć drukarkę \(printer.name)?", "Remove printer \(printer.name)?")
+        alert.informativeText = settings.text(
+            "Zapisany kod dostępu i pin certyfikatu tej drukarki zostaną usunięte.",
+            "This printer's saved access code and certificate pin will be removed."
+        )
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: settings.text("Usuń", "Remove"))
+        alert.addButton(withTitle: settings.text("Anuluj", "Cancel"))
+        // Prefer a modal sheet on the window; fall back to a standalone alert.
+        if let window = view.window {
+            alert.beginSheetModal(for: window) { [weak self] result in
+                if result == .alertFirstButtonReturn { self?.store.remove(printer) }
+            }
+        } else if alert.runModal() == .alertFirstButtonReturn {
+            store.remove(printer)
+        }
     }
 
     @objc private func addPressed() { onAdd() }
@@ -528,6 +553,7 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
         onOpenStudio: @escaping () -> Void,
         onOpenCamera: @escaping () -> Void,
         onCopyIP: @escaping () -> Void,
+        onRemove: @escaping () -> Void,
         onMove: @escaping (_ sourceSerial: String, _ targetSerial: String, _ insertAfter: Bool) -> Void
     ) {
         serial = printer.serial
@@ -569,7 +595,8 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
             .init(polishTitle: "Kamera w Bambu Studio", englishTitle: "Camera in Bambu Studio", symbol: "video.fill", action: onOpenCamera),
             .init(polishTitle: "Otwórz Bambu Studio", englishTitle: "Open Bambu Studio", symbol: "square.and.arrow.up", action: onOpenStudio),
             .init(polishTitle: "Kopiuj adres IP", englishTitle: "Copy IP address", symbol: "doc.on.doc", action: onCopyIP),
-            .init(polishTitle: "Edytuj drukarkę", englishTitle: "Edit printer", symbol: "pencil", action: onEdit)
+            .init(polishTitle: "Edytuj drukarkę", englishTitle: "Edit printer", symbol: "pencil", action: onEdit),
+            .init(polishTitle: "Usuń drukarkę", englishTitle: "Remove printer", symbol: "trash", action: onRemove)
         ])
         let handle = PrinterDragHandle { [weak self] event in self?.beginCardDrag(with: event) }
         dragHandle = handle
