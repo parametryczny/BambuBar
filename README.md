@@ -17,7 +17,7 @@ A compact, MIT-licensed macOS menu bar monitor for Bambu Lab 3D printers. BambuB
 
 ### Latest changes
 
-Version 0.1.15 adds TLS certificate pinning and two downloads: **Local** for convenient preference-based access-code storage, and **Keychain** for storage in the macOS Keychain.
+Version 0.1.18 adds **Remove printer** to the ⋯ menu on each card, finishes network scans in seconds instead of ~30 s, and makes Bambu Studio import work on a clean install.
 
 [Read the full changelog](CHANGELOG.md)
 
@@ -113,7 +113,7 @@ Kompaktowy monitor drukarek 3D Bambu Lab dla paska menu macOS, na licencji MIT. 
 
 ### Najnowsze zmiany
 
-Wersja 0.1.15 dodaje pinning certyfikatu TLS oraz dwa warianty do pobrania: **Local** — wygodne przechowywanie kodów dostępu w ustawieniach aplikacji, oraz **Keychain** — przechowywanie w pęku kluczy macOS.
+Wersja 0.1.18 dodaje **usuwanie drukarki** z menu ⋯ na karcie, skraca skanowanie sieci z ~30 s do kilku sekund oraz sprawia, że import z Bambu Studio działa na czystej instalacji.
 
 [Zobacz pełny changelog](CHANGELOG.md)
 

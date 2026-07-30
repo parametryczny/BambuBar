@@ -142,7 +142,7 @@ final class SettingsWindowController: NSWindowController {
         launchLabel.stringValue = settings.text("Uruchamiaj przy logowaniu", "Launch at login")
         launchSwitch.state = LaunchAtLoginManager.isEnabled ? .on : .off
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-            ?? "0.1.17"
+            ?? "—"
         versionLabel.stringValue = settings.text("Wersja \(version)", "Version \(version)") + " • \(AccessCodeStore.modeName)"
         supportButton.title = settings.text("Wesprzyj projekt", "Support the project")
         closeButton.title = settings.text("Gotowe", "Done")
