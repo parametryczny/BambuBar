@@ -2,8 +2,13 @@
 
 Wszystkie istotne zmiany w aplikacji BambuBar są opisane w tym pliku.
 
-## Nieopublikowane
+## 0.1.18 — 2026-07-30
 
+- dodano usuwanie drukarki z menu „⋯" na karcie (z potwierdzeniem)
+- skanowanie sieci kończy się w kilka sekund zamiast ~30 s (nie poddaje się już po 8 s)
+- import z Bambu Studio działa na czystej instalacji — czyta adres IP z konfiguracji i tworzy drukarki bez potrzeby skanu, a przycisk importu nie czeka już na skanowanie
+- wykrywanie SSDP działa również przy uruchomionym Bambu Studio (rezerwowy port, gdy 2021 jest zajęty)
+- okno dodawania i edycji drukarki jest w pełni tłumaczone przy każdym otwarciu
 - dodano testy jednostkowe (kodek MQTT, parser SSDP, parser statusu) oraz skrypt `scripts/run-tests.sh`
 - ustabilizowano podpis aplikacji, dzięki czemu zgoda macOS na dostęp do sieci lokalnej przetrwa kolejne przebudowy
 - README dostępne w wersji polskiej i angielskiej

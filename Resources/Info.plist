@@ -2,23 +2,37 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDisplayName</key><string>BambuBar</string>
-    <key>CFBundleExecutable</key><string>BambuBar</string>
-    <key>CFBundleIdentifier</key><string>pl.bambubar.app</string>
-    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-    <key>CFBundleName</key><string>BambuBar</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleGetInfoString</key><string>BambuBar by Kamil Grzegorczyk (@parametryczny)</string>
-    <key>NSHumanReadableCopyright</key><string>Copyright © 2026 Kamil Grzegorczyk (@parametryczny)</string>
-    <key>CFBundleShortVersionString</key><string>0.1.17</string>
-    <key>CFBundleVersion</key><string>26</string>
-    <key>LSMinimumSystemVersion</key><string>26.0</string>
-    <key>LSUIElement</key><true/>
-    <key>NSLocalNetworkUsageDescription</key><string>BambuBar wykrywa i monitoruje drukarki Bambu Lab w lokalnej sieci.</string>
-    <key>NSBonjourServices</key>
-    <array>
-        <string>_bambubar._tcp</string>
-    </array>
-    <key>NSPrincipalClass</key><string>NSApplication</string>
+	<key>CFBundleDisplayName</key>
+	<string>BambuBar</string>
+	<key>CFBundleExecutable</key>
+	<string>BambuBar</string>
+	<key>CFBundleGetInfoString</key>
+	<string>BambuBar by Kamil Grzegorczyk (@parametryczny)</string>
+	<key>CFBundleIdentifier</key>
+	<string>pl.bambubar.app</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>BambuBar</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.18</string>
+	<key>CFBundleVersion</key>
+	<string>0.1.18</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_bambubar._tcp</string>
+	</array>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 Kamil Grzegorczyk (@parametryczny)</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>BambuBar wykrywa i monitoruje drukarki Bambu Lab w lokalnej sieci.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>
