@@ -73,25 +73,21 @@ Clone the repository and build either application variant:
 ```bash
 git clone https://github.com/parametryczny/BambuBar.git
 cd BambuBar
-chmod +x scripts/build-app.sh scripts/build-release.sh
-./scripts/build-app.sh local
-./scripts/build-app.sh keychain
+make app            # dist/BambuBar.app
+make app-keychain   # "dist/BambuBar Keychain.app"
 ```
 
-The applications are created at `dist/BambuBar.app` and `dist/BambuBar Keychain.app`. Run `./scripts/build-release.sh` to create both release ZIP archives.
+`make run` packages the local-storage variant and launches it. `make release` creates both release ZIP archives, and `make help` lists every available target.
 
 On the first launch, allow Local Network access when macOS asks for it.
 
 ### Tests
 
 ```bash
-swift build --disable-sandbox
-.build/debug/BambuBar --self-test
-.build/debug/BambuBar --storage-self-test
-.build/debug/BambuBar --certificate-pin-self-test
+make check
 ```
 
-The self-test covers SSDP parsing, MQTT framing, Unicode print names, telemetry and both four-slot and single-slot AMS layouts. Run the unit tests with `./scripts/run-tests.sh`.
+`make check` runs the in-binary self-tests, compiles the Keychain variant and runs the unit suite. The self-tests cover SSDP parsing, MQTT framing, Unicode print names, telemetry and both four-slot and single-slot AMS layouts; `make test` runs just the unit tests.
 
 ### Privacy
 
@@ -169,25 +165,21 @@ Sklonuj repozytorium i zbuduj wybrany wariant aplikacji:
 ```bash
 git clone https://github.com/parametryczny/BambuBar.git
 cd BambuBar
-chmod +x scripts/build-app.sh scripts/build-release.sh
-./scripts/build-app.sh local
-./scripts/build-app.sh keychain
+make app            # dist/BambuBar.app
+make app-keychain   # "dist/BambuBar Keychain.app"
 ```
 
-Aplikacje powstają jako `dist/BambuBar.app` oraz `dist/BambuBar Keychain.app`. Uruchom `./scripts/build-release.sh`, aby utworzyć oba archiwa ZIP do wydania.
+`make run` pakuje wariant z lokalnym magazynem i go uruchamia. Polecenie `make release` tworzy oba archiwa ZIP do wydania, a `make help` wypisuje wszystkie dostępne cele.
 
 Przy pierwszym uruchomieniu zezwól na dostęp do sieci lokalnej, gdy macOS o to zapyta.
 
 ### Testy
 
 ```bash
-swift build --disable-sandbox
-.build/debug/BambuBar --self-test
-.build/debug/BambuBar --storage-self-test
-.build/debug/BambuBar --certificate-pin-self-test
+make check
 ```
 
-Self-test obejmuje parsowanie SSDP, ramkowanie MQTT, nazwy druków z Unicode, telemetrię oraz układy AMS cztero- i jednoslotowe. Testy jednostkowe uruchomisz przez `./scripts/run-tests.sh`.
+`make check` uruchamia wbudowane self-testy, kompiluje wariant Keychain i wykonuje testy jednostkowe. Self-testy obejmują parsowanie SSDP, ramkowanie MQTT, nazwy druków z Unicode, telemetrię oraz układy AMS cztero- i jednoslotowe; samo `make test` uruchamia wyłącznie testy jednostkowe.
 
 ### Prywatność
 

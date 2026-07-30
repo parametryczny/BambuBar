@@ -12,31 +12,31 @@ Thank you for helping improve BambuBar.
 
 Requirements: macOS 26 or newer, Swift 6 and Xcode Command Line Tools.
 
-```bash
-swift build --disable-sandbox
-.build/debug/BambuBar --self-test
-.build/debug/BambuBar --storage-self-test
-.build/debug/BambuBar --certificate-pin-self-test
-```
-
-Run the unit tests (parsers, MQTT codec, discovery) with:
+The `Makefile` is the canonical entry point — run `make help` to list every
+target. The scripts under `scripts/` remain the implementation, but prefer the
+targets so there is one place to change a command. The common ones:
 
 ```bash
-./scripts/run-tests.sh
+make check          # self-tests, Keychain variant and the unit suite
+make test           # unit tests only (parsers, MQTT codec, discovery)
+make app            # package dist/BambuBar.app
+make app-keychain   # package "dist/BambuBar Keychain.app"
+make run            # package the local-storage variant and launch it
 ```
 
-The script wraps `swift test` and, on Command Line Tools–only machines,
+`make test` wraps `swift test` and, on Command Line Tools–only machines,
 supplies the swift-testing plugin and framework search paths and builds
 outside the project tree. With a full Xcode install, plain `swift test` also
 works.
 
-To compile and package both storage variants:
+Run `make signing` once before your first `make app`. macOS ties the Local
+Network privacy grant to the app's code signature, so with ad-hoc signing the
+identity changes on every build and the grant — and with it printer access — is
+lost. The target creates a stable self-signed identity in your login keychain
+and is idempotent.
 
-```bash
-chmod +x scripts/build-app.sh scripts/build-release.sh
-./scripts/build-app.sh local
-./scripts/build-app.sh keychain
-```
+CI runs `make build`, `make selftest` and `make build-keychain`. The unit suite
+is not gated in CI, so run `make check` locally before opening a pull request.
 
 The Keychain storage self-test needs an interactive, unlocked login keychain and is therefore intended for local verification rather than CI.
 
