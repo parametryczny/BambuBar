@@ -15,7 +15,7 @@ final class BambuSubnetDiscovery: @unchecked Sendable {
         let uniqueHosts = Array(Set(hosts))
         return await withTaskGroup(of: DiscoveredPrinter?.self) { group in
             var iterator = uniqueHosts.makeIterator()
-            for _ in 0..<min(32, uniqueHosts.count) {
+            for _ in 0..<min(128, uniqueHosts.count) {
                 if let host = iterator.next() {
                     group.addTask { await self.probe(host: host) }
                 }
@@ -73,7 +73,7 @@ final class BambuSubnetDiscovery: @unchecked Sendable {
                 }
             }
             connection.start(queue: queue)
-            queue.asyncAfter(deadline: .now() + 3.5) { box.finish() }
+            queue.asyncAfter(deadline: .now() + 2.0) { box.finish() }
         }
     }
 

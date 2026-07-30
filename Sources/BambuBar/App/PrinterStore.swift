@@ -87,27 +87,25 @@ final class PrinterStore: ObservableObject {
 
     @discardableResult
     func importFromBambuStudio() throws -> Int {
-        let codes = try BambuStudioConfig.accessCodes()
+        let devices = try BambuStudioConfig.devices()
         var imported = 0
 
-        for printer in printers {
-            guard let code = codes[printer.serial] else { continue }
-            try AccessCodeStore.save(accessCode: code, for: printer.serial)
-            sessionCodes[printer.serial] = code
-            reconnect(printer)
+        // Prefer an address we already know (saved printer or a fresh discovery hit) and fall
+        // back to the IP stored in the Bambu Studio config, so import works on a clean install
+        // with no saved printers and without waiting for a network scan.
+        for device in devices {
+            let existing = printers.first { $0.serial == device.serial }
+            let found = discovered.first { $0.serial == device.serial }
+            guard let host = existing?.host ?? found?.host ?? device.host else { continue }
+            let name = existing?.name ?? found?.name ?? "Bambu \(device.serial.suffix(4))"
+            let model = found?.model ?? existing?.model ?? "Bambu Lab"
+            try upsert(SavedPrinter(serial: device.serial, name: name, model: model, host: host), accessCode: device.accessCode)
             imported += 1
         }
 
-        for found in discovered {
-            guard let code = codes[found.serial] else { continue }
-            sessionCodes[found.serial] = code
-            let printer = SavedPrinter(serial: found.serial, name: found.name, model: found.model, host: found.host)
-            try upsert(printer, accessCode: code)
-            imported += 1
-        }
-        discovered.removeAll { codes[$0.serial] != nil }
+        discovered.removeAll { found in devices.contains { $0.serial == found.serial } }
         guard imported > 0 else {
-            throw BambuStudioConfigError("Nie znaleziono pasujących drukarek z zapisanym kodem.")
+            throw BambuStudioConfigError("Nie znaleziono drukarek z zapisanym kodem i adresem IP.")
         }
         return imported
     }

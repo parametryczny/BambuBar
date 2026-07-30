@@ -144,7 +144,8 @@ final class AddPrinterWindowController: NSWindowController {
 
     private func refreshDiscovery() {
         scanButton.isEnabled = !store.isScanning
-        importButton.isEnabled = !store.isScanning
+        // Import reads the Bambu Studio config directly, so it never needs to wait for a scan.
+        importButton.isEnabled = editingSerial == nil
         guard editingSerial == nil else { return }
         if store.isScanning {
             statusLabel.stringValue = AppSettings.shared.text("Skanowanie sieci…", "Scanning network…")

@@ -1,7 +1,10 @@
 import Darwin
 import Foundation
+import OSLog
 
 final class SSDPDiscovery: @unchecked Sendable {
+    private static let logger = Logger(subsystem: "pl.bambubar.app", category: "SSDP")
+
     func scan(seconds: TimeInterval = 4) async -> [DiscoveredPrinter] {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -19,18 +22,30 @@ final class SSDPDiscovery: @unchecked Sendable {
         setsockopt(descriptor, SOL_SOCKET, SO_REUSEADDR, &enabled, socklen_t(MemoryLayout.size(ofValue: enabled)))
         setsockopt(descriptor, SOL_SOCKET, SO_REUSEPORT, &enabled, socklen_t(MemoryLayout.size(ofValue: enabled)))
 
-        // Bambu Studio listens for printer SSDP announcements on UDP port 2021.
-        var localAddress = sockaddr_in()
-        localAddress.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        localAddress.sin_family = sa_family_t(AF_INET)
-        localAddress.sin_port = in_port_t(2021).bigEndian
-        localAddress.sin_addr = in_addr(s_addr: INADDR_ANY)
-        let bindResult = withUnsafePointer(to: &localAddress) { address in
-            address.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+        // Prefer UDP 2021 (Bambu's announcement port). If it is already held — e.g. Bambu
+        // Studio is running and doesn't permit port sharing — fall back to an ephemeral port;
+        // the unicast replies to our M-SEARCH still come back to us.
+        func bind(toPort port: in_port_t) -> Int32 {
+            var address = sockaddr_in()
+            address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family = sa_family_t(AF_INET)
+            address.sin_port = port.bigEndian
+            address.sin_addr = in_addr(s_addr: INADDR_ANY)
+            return withUnsafePointer(to: &address) { pointer in
+                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
             }
         }
-        guard bindResult == 0 else { return [] }
+        var bindResult = bind(toPort: 2021)
+        if bindResult != 0 {
+            Self.logger.notice("SSDP port 2021 unavailable, falling back to an ephemeral port")
+            bindResult = bind(toPort: 0)
+        }
+        guard bindResult == 0 else {
+            Self.logger.error("SSDP bind failed; SSDP discovery skipped this scan")
+            return []
+        }
 
         var membership = ip_mreq(
             imr_multiaddr: in_addr(s_addr: inet_addr("239.255.255.250")),
