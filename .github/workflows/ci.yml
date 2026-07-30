@@ -1,0 +1,27 @@
+name: Build and self-test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Show Swift version
+        run: swift --version
+      - name: Build
+        run: swift build --disable-sandbox
+      - name: Run protocol self-test
+        run: .build/debug/BambuBar --self-test
+      - name: Run local storage self-test
+        run: .build/debug/BambuBar --storage-self-test
+      - name: Run certificate pin self-test
+        run: .build/debug/BambuBar --certificate-pin-self-test
+      - name: Compile Keychain variant
+        run: swift build --disable-sandbox -Xswiftc -DKEYCHAIN_STORAGE

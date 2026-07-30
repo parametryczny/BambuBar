@@ -1,0 +1,413 @@
+import Combine
+import Foundation
+
+@MainActor
+final class PrinterStore: ObservableObject {
+    @Published private(set) var printers: [SavedPrinter]
+    @Published private(set) var telemetry: [String: PrinterTelemetry] = [:]
+    @Published private(set) var connectionMessages: [String: String] = [:]
+    @Published private(set) var discovered: [DiscoveredPrinter] = []
+    @Published var isScanning = false
+    @Published var globalMessage: String?
+
+    private let persistence = PrinterPersistence()
+    private let discovery = SSDPDiscovery()
+    private let subnetDiscovery = BambuSubnetDiscovery()
+    private var clients: [String: MQTTClient] = [:]
+    private var reconnectTasks: [String: Task<Void, Never>] = [:]
+    private var permissionRetryTask: Task<Void, Never>?
+    private var localNetworkWasDenied = false
+    private var lastAddressScan: Date?
+    private var sessionCodes: [String: String] = [:]
+    private var dismissedJobs: [String: String] = [:]
+    private var printersWithTelemetry = Set<String>()
+    private var scanToken: UUID?
+
+    init() {
+        printers = persistence.load()
+        for printer in printers { telemetry[printer.serial] = PrinterTelemetry() }
+        Task { @MainActor [weak self] in
+            self?.refreshPrinterNames()
+        }
+    }
+
+    var activePrintCount: Int {
+        telemetry.values.filter { $0.state == .printing }.count
+    }
+
+    func scan() {
+        guard !isScanning else { return }
+        let token = UUID()
+        scanToken = token
+        isScanning = true
+        globalMessage = nil
+        Task {
+            async let ssdpResults = discovery.scan()
+            async let subnetResults = subnetDiscovery.scan()
+            let combined = await ssdpResults + subnetResults
+            guard scanToken == token else { return }
+            let results = Array(Dictionary(grouping: combined, by: \.serial).compactMap { $0.value.first })
+            discovered = results.filter { candidate in !printers.contains { $0.serial == candidate.serial } }
+                .sorted { $0.host.compare($1.host, options: .numeric) == .orderedAscending }
+            isScanning = false
+            if discovered.isEmpty { globalMessage = "Nie znaleziono nowych drukarek po 4 sekundach." }
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(8))
+            guard scanToken == token, isScanning else { return }
+            isScanning = false
+            globalMessage = "Skanowanie przekroczyło 8 sekund. Sprawdź dostęp BambuBar do sieci lokalnej."
+        }
+    }
+
+    func add(_ discovered: DiscoveredPrinter, accessCode: String, customName: String? = nil) throws {
+        let code = accessCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { throw ValidationError("Podaj kod PIN / Access Code drukarki.") }
+        let name = customName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let printer = SavedPrinter(
+            serial: discovered.serial,
+            name: name?.isEmpty == false ? name! : discovered.name,
+            model: discovered.model,
+            host: discovered.host
+        )
+        try upsert(printer, accessCode: code)
+        self.discovered.removeAll { $0.serial == printer.serial }
+    }
+
+    func addManually(name: String, serial: String, host: String, accessCode: String) throws {
+        let cleanSerial = serial.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanCode = accessCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanSerial.isEmpty, !cleanHost.isEmpty, !cleanCode.isEmpty else {
+            throw ValidationError("Adres IP, numer seryjny i kod dostępu są wymagane.")
+        }
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        try upsert(SavedPrinter(serial: cleanSerial, name: cleanName.isEmpty ? "Bambu \(cleanSerial.suffix(4))" : cleanName, host: cleanHost), accessCode: cleanCode)
+    }
+
+    @discardableResult
+    func importFromBambuStudio() throws -> Int {
+        let codes = try BambuStudioConfig.accessCodes()
+        var imported = 0
+
+        for printer in printers {
+            guard let code = codes[printer.serial] else { continue }
+            try AccessCodeStore.save(accessCode: code, for: printer.serial)
+            sessionCodes[printer.serial] = code
+            reconnect(printer)
+            imported += 1
+        }
+
+        for found in discovered {
+            guard let code = codes[found.serial] else { continue }
+            sessionCodes[found.serial] = code
+            let printer = SavedPrinter(serial: found.serial, name: found.name, model: found.model, host: found.host)
+            try upsert(printer, accessCode: code)
+            imported += 1
+        }
+        discovered.removeAll { codes[$0.serial] != nil }
+        guard imported > 0 else {
+            throw BambuStudioConfigError("Nie znaleziono pasujących drukarek z zapisanym kodem.")
+        }
+        return imported
+    }
+
+    func update(originalSerial: String, name: String, serial: String, host: String, accessCode: String) throws {
+        let cleanSerial = serial.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let enteredCode = accessCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanSerial.isEmpty, !cleanHost.isEmpty else {
+            throw ValidationError("Adres IP i numer seryjny są wymagane.")
+        }
+        guard let code = enteredCode.isEmpty ? (sessionCodes[originalSerial] ?? AccessCodeStore.accessCode(for: originalSerial)) : enteredCode,
+              !code.isEmpty else {
+            throw ValidationError("Podaj kod PIN / Access Code drukarki.")
+        }
+
+        clients.removeValue(forKey: originalSerial)?.stop()
+        if originalSerial != cleanSerial {
+            printers.removeAll { $0.serial == originalSerial }
+            telemetry.removeValue(forKey: originalSerial)
+            connectionMessages.removeValue(forKey: originalSerial)
+            AccessCodeStore.delete(for: originalSerial)
+            CertificatePinStore.shared.delete(for: originalSerial)
+        }
+        let printer = SavedPrinter(
+            serial: cleanSerial,
+            name: cleanName.isEmpty ? "Bambu \(cleanSerial.suffix(4))" : cleanName,
+            host: cleanHost
+        )
+        try upsert(printer, accessCode: code)
+    }
+
+    func remove(_ printer: SavedPrinter) {
+        reconnectTasks.removeValue(forKey: printer.serial)?.cancel()
+        clients.removeValue(forKey: printer.serial)?.stop()
+        sessionCodes.removeValue(forKey: printer.serial)
+        printers.removeAll { $0.serial == printer.serial }
+        telemetry.removeValue(forKey: printer.serial)
+        connectionMessages.removeValue(forKey: printer.serial)
+        AccessCodeStore.delete(for: printer.serial)
+        CertificatePinStore.shared.delete(for: printer.serial)
+        persistence.save(printers)
+    }
+
+    func movePrinter(serial: String, relativeTo targetSerial: String, insertAfter: Bool) {
+        guard serial != targetSerial,
+              let sourceIndex = printers.firstIndex(where: { $0.serial == serial }) else { return }
+        let printer = printers.remove(at: sourceIndex)
+        guard let targetIndex = printers.firstIndex(where: { $0.serial == targetSerial }) else {
+            printers.insert(printer, at: min(sourceIndex, printers.count))
+            return
+        }
+        printers.insert(printer, at: targetIndex + (insertAfter ? 1 : 0))
+        persistence.save(printers)
+    }
+
+    func reconnect(_ printer: SavedPrinter) {
+        reconnectTasks.removeValue(forKey: printer.serial)?.cancel()
+        clients.removeValue(forKey: printer.serial)?.stop()
+        telemetry[printer.serial] = PrinterTelemetry()
+        connectionMessages[printer.serial] = "Łączenie…"
+        let code: String
+        if let sessionCode = sessionCodes[printer.serial] {
+            code = sessionCode
+        } else {
+            do {
+                code = try AccessCodeStore.readAccessCode(for: printer.serial)
+                sessionCodes[printer.serial] = code
+            } catch {
+                connectionMessages[printer.serial] = error.localizedDescription
+                return
+            }
+        }
+        let client = MQTTClient(printer: printer, accessCode: code) { [weak self] event in
+            Task { @MainActor [weak self] in self?.handle(event, serial: printer.serial) }
+        }
+        clients[printer.serial] = client
+        client.start()
+    }
+
+    func reconnectAll() {
+        for printer in printers { reconnect(printer) }
+    }
+
+    func retryAfterLocalNetworkPermission() {
+        guard localNetworkWasDenied else { return }
+        reconnectAll()
+    }
+
+    func refreshPrinterNames() {
+        Task {
+            let results = await discovery.scan(seconds: 4)
+            var changed = false
+            for found in results {
+                guard let index = printers.firstIndex(where: { $0.serial == found.serial }),
+                      shouldReplaceAutomaticName(printers[index].name),
+                      !shouldReplaceAutomaticName(found.name) else { continue }
+                printers[index].name = found.name.precomposedStringWithCanonicalMapping
+                if found.model != "Bambu Lab" { printers[index].model = found.model }
+                changed = true
+            }
+            guard changed else { return }
+            persistence.save(printers)
+        }
+    }
+
+    func resetCompletedStatuses() {
+        for (serial, current) in telemetry where current.state != .printing && current.state != .paused {
+            if let jobName = current.jobName, !jobName.isEmpty { dismissedJobs[serial] = jobName }
+            telemetry[serial] = clearedCompletedJob(current)
+            connectionMessages[serial] = nil
+        }
+    }
+
+    private func upsert(_ printer: SavedPrinter, accessCode: String) throws {
+        try AccessCodeStore.save(accessCode: accessCode, for: printer.serial)
+        sessionCodes[printer.serial] = accessCode
+        if let index = printers.firstIndex(where: { $0.serial == printer.serial }) {
+            printers[index] = printer
+        } else {
+            printers.append(printer)
+        }
+        telemetry[printer.serial] = PrinterTelemetry()
+        persistence.save(printers)
+        reconnect(printer)
+    }
+
+    private func handle(_ event: MQTTClient.Event, serial: String) {
+        switch event {
+        case .connected:
+            localNetworkWasDenied = false
+            permissionRetryTask?.cancel()
+            permissionRetryTask = nil
+            reconnectTasks.removeValue(forKey: serial)?.cancel()
+            connectionMessages[serial] = nil
+        case .telemetry(var value):
+            reconnectTasks.removeValue(forKey: serial)?.cancel()
+            let previous = telemetry[serial]
+            if value.state == .printing || value.state == .paused {
+                dismissedJobs.removeValue(forKey: serial)
+            } else if let dismissed = dismissedJobs[serial], value.jobName == dismissed {
+                value = clearedCompletedJob(value)
+            } else if value.jobName != dismissedJobs[serial] {
+                dismissedJobs.removeValue(forKey: serial)
+            }
+            telemetry[serial] = value
+            connectionMessages[serial] = nil
+            if printersWithTelemetry.contains(serial), let printer = printers.first(where: { $0.serial == serial }) {
+                notifyChanges(printer: printer, previous: previous, current: value)
+            }
+            printersWithTelemetry.insert(serial)
+        case .disconnected(let reason):
+            var offline = telemetry[serial] ?? PrinterTelemetry()
+            offline.state = .offline
+            telemetry[serial] = offline
+            connectionMessages[serial] = (reason ?? "Rozłączono") + " • ponowna próba za 20 s"
+            scheduleReconnect(serial: serial)
+        case .localNetworkDenied:
+            localNetworkWasDenied = true
+            reconnectTasks.values.forEach { $0.cancel() }
+            reconnectTasks.removeAll()
+            clients.values.forEach { $0.stop() }
+            for printer in printers {
+                var offline = telemetry[printer.serial] ?? PrinterTelemetry()
+                offline.state = .offline
+                telemetry[printer.serial] = offline
+                connectionMessages[printer.serial] = "Brak dostępu do sieci lokalnej — włącz BambuBar w Ustawienia systemowe › Prywatność i ochrona › Sieć lokalna"
+            }
+            schedulePermissionRetry()
+        }
+    }
+
+    private func schedulePermissionRetry() {
+        guard permissionRetryTask == nil else { return }
+        permissionRetryTask = Task { @MainActor [weak self] in
+            for _ in 0..<24 {
+                try? await Task.sleep(for: .seconds(5))
+                guard let self, !Task.isCancelled else { return }
+                for printer in self.printers { self.reconnect(printer) }
+            }
+            self?.permissionRetryTask = nil
+        }
+    }
+
+    private func scheduleReconnect(serial: String) {
+        guard reconnectTasks[serial] == nil,
+              printers.contains(where: { $0.serial == serial }) else { return }
+        reconnectTasks[serial] = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(20))
+            guard let self, !Task.isCancelled,
+                  self.printers.contains(where: { $0.serial == serial }),
+                  self.telemetry[serial]?.state == .offline else {
+                self?.reconnectTasks.removeValue(forKey: serial)
+                return
+            }
+            if self.lastAddressScan.map({ Date().timeIntervalSince($0) >= 300 }) ?? true {
+                self.lastAddressScan = Date()
+                self.connectionMessages[serial] = "Szukam aktualnego adresu IP…"
+                await self.refreshAddresses()
+            }
+            guard !Task.isCancelled,
+                  let printer = self.printers.first(where: { $0.serial == serial }) else { return }
+            self.reconnectTasks.removeValue(forKey: serial)
+            self.reconnect(printer)
+        }
+    }
+
+    private func refreshAddresses() async {
+        async let ssdpResults = discovery.scan(seconds: 3)
+        async let subnetResults = subnetDiscovery.scan()
+        let results = await ssdpResults + subnetResults
+        var changed = false
+        for found in results {
+            guard let index = printers.firstIndex(where: { $0.serial == found.serial }) else { continue }
+            if printers[index].host != found.host {
+                printers[index].host = found.host
+                changed = true
+            }
+            if shouldReplaceAutomaticName(printers[index].name), !shouldReplaceAutomaticName(found.name) {
+                printers[index].name = found.name.precomposedStringWithCanonicalMapping
+                changed = true
+            }
+            if found.model != "Bambu Lab", printers[index].model != found.model {
+                printers[index].model = found.model
+                changed = true
+            }
+        }
+        if changed { persistence.save(printers) }
+    }
+
+    private func clearedCompletedJob(_ telemetry: PrinterTelemetry) -> PrinterTelemetry {
+        var cleared = telemetry
+        if cleared.state == .finished { cleared.state = .idle }
+        cleared.progress = 0
+        cleared.remainingMinutes = nil
+        cleared.currentLayer = nil
+        cleared.totalLayers = nil
+        cleared.jobName = nil
+        return cleared
+    }
+
+    private func notifyChanges(printer: SavedPrinter, previous: PrinterTelemetry?, current: PrinterTelemetry) {
+        let settings = AppSettings.shared
+        if current.state == .finished, previous?.state != .finished {
+            NotificationService.post(
+                title: settings.text("Druk zakończony", "Print finished"),
+                body: current.jobName ?? settings.text("Zadanie zostało ukończone.", "The job has completed."),
+                subtitle: printer.name
+            )
+        }
+        if current.state == .error, previous?.state != .error || previous?.hmsCodes != current.hmsCodes {
+            let description = HMSResolver.shared.description(for: current.hmsCodes, serial: printer.serial, language: settings.language)
+                ?? (current.errorCode != 0
+                    ? String(format: settings.text("Kod błędu: 0x%llX", "Error code: 0x%llX"), current.errorCode)
+                    : settings.text("Drukarka zgłosiła błąd.", "The printer reported an error."))
+            NotificationService.post(title: settings.text("Błąd drukarki", "Printer error"), body: description, subtitle: printer.name)
+        } else if current.state == .paused, previous?.state != .paused {
+            NotificationService.post(
+                title: settings.text("Druk wstrzymany", "Print paused"),
+                body: current.jobName ?? settings.text("Drukarka oczekuje na działanie.", "The printer needs attention."),
+                subtitle: printer.name
+            )
+        }
+
+        let previousLow = Set(previous?.amsSlots.filter { ($0.remainingPercent ?? 100) <= 15 }.map(\.id) ?? [])
+        let newLow = current.amsSlots.filter { ($0.remainingPercent ?? 100) <= 15 && !previousLow.contains($0.id) }
+        if let slot = newLow.first {
+            NotificationService.post(
+                title: settings.text("Niski poziom filamentu", "Low filament"),
+                body: "\(slot.label) • \(slot.material) • \(slot.remainingPercent ?? 0)%",
+                subtitle: printer.name
+            )
+        }
+
+        if isHumidityHigh(current.amsHumidity), !isHumidityHigh(previous?.amsHumidity) {
+            NotificationService.post(
+                title: settings.text("Wysoka wilgotność AMS", "High AMS humidity"),
+                body: settings.text("Sprawdź lub osusz pochłaniacz wilgoci.", "Check or dry the desiccant."),
+                subtitle: printer.name
+            )
+        }
+    }
+
+    private func isHumidityHigh(_ value: Int?) -> Bool {
+        guard let value else { return false }
+        return value <= 5 ? value >= 4 : value >= 40
+    }
+
+    private func shouldReplaceAutomaticName(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.lowercased().hasPrefix("bambu ") else { return trimmed.isEmpty }
+        let suffix = trimmed.dropFirst(6)
+        return suffix.count <= 6 && suffix.allSatisfy { $0.isLetter || $0.isNumber }
+    }
+
+}
+
+struct ValidationError: LocalizedError {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
+}

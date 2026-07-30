@@ -1,0 +1,36 @@
+# Historia zmian BambuBar
+
+Wszystkie istotne zmiany w aplikacji BambuBar są opisane w tym pliku.
+
+## Nieopublikowane
+
+- dodano testy jednostkowe (kodek MQTT, parser SSDP, parser statusu) oraz skrypt `scripts/run-tests.sh`
+- ustabilizowano podpis aplikacji, dzięki czemu zgoda macOS na dostęp do sieci lokalnej przetrwa kolejne przebudowy
+- README dostępne w wersji polskiej i angielskiej
+
+## 0.1.14 — 2026-07-30
+
+- opublikowano kompletny kod źródłowy projektu na licencji MIT
+- import z Bambu Studio odbywa się wyłącznie po świadomym kliknięciu przycisku przez użytkownika
+- zaimportowane kody dostępu są zapisywane w pęku kluczy macOS i nie wymagają ponownego odczytu konfiguracji Bambu Studio przy starcie
+- dodano dokumentację bezpieczeństwa, zasady współtworzenia i automatyczny build dla macOS 26
+- dodano informacje o autorze oraz odnośniki do profili GitHub, X i strony wsparcia
+- wyeliminowano wielokrotne pytania pęku kluczy podczas automatycznego ponownego łączenia
+- ujednolicono lokalną tożsamość podpisu dla aplikacji i uruchamiania przez plik `.command`
+
+## 0.1.13 — 2026-07-29
+
+- wydano pierwszą kompletną wersję natywnego monitora drukarek Bambu Lab dla paska menu macOS
+- dodano wykrywanie drukarek w sieci lokalnej, ręczne dodawanie urządzeń oraz automatyczne ponowne łączenie
+- dodano status wydruku, procent postępu, pozostały czas, warstwy oraz temperatury dyszy, stołu i komory
+- dodano szczegółowe etapy pracy, m.in. bazowanie, nagrzewanie, poziomowanie, ładowanie i zmianę filamentu
+- dodano komunikaty HMS, powiadomienia o błędach i zakończeniu druku oraz subtelne wyróżnienie kafelków błędu i zakończonego zadania
+- dodano obsługę AMS na cztery szpule i pojedynczego AMS wraz z kolorami, aktywnym slotem, wilgotnością, temperaturą i ostrzeżeniami o niskim poziomie filamentu
+- dodano obsługę polskich znaków w nazwach plików oraz czytelne skrócone informacje AMS
+- dodano przeciąganie kafelków, zapisywanie kolejności drukarek i znacznik miejsca upuszczenia
+- widok rozwinięty korzysta z dwóch kolumn, a od dziewięciu drukarek automatycznie przechodzi na trzy kolumny
+- od czterech drukarek dostępny jest tryb zwarty, mieszczący do piętnastu statusów w wąskim panelu
+- wybrany układ, język polski lub angielski oraz jasny lub ciemny wygląd są zapamiętywane
+- ustawienia otwierają się w osobnym oknie z menu kontekstowego ikony `BL` i zawierają opcję uruchamiania przy logowaniu oraz odnośnik do wsparcia
+- ograniczono odświeżanie ETA do pięciu minut, ukryto licznik świeżych danych i dodano ostrzeżenie o nieaktualnej telemetrii
+- kody dostępu są bezpiecznie przechowywane w pęku kluczy macOS, a komunikacja z drukarkami odbywa się lokalnie bez konta Bambu Cloud
