@@ -365,11 +365,11 @@ public sealed class PrinterStore
     private void NotifyChanges(SavedPrinter printer, PrinterTelemetry? previous, PrinterTelemetry current)
     {
         bool pl = AppSettings.Polish;
-        if (current.State == PrinterState.Finished && previous?.State != PrinterState.Finished)
+        if (AppSettings.NotifyPrintFinished && current.State == PrinterState.Finished && previous?.State != PrinterState.Finished)
             NotificationService.Post(AppSettings.Text("Druk zakończony", "Print finished"),
                 current.JobName ?? AppSettings.Text("Zadanie zostało ukończone.", "The job has completed."), printer.Name);
 
-        if (current.State == PrinterState.Error && (previous?.State != PrinterState.Error || !SequenceEqual(previous?.HmsCodes, current.HmsCodes)))
+        if (AppSettings.NotifyPrinterError && current.State == PrinterState.Error && (previous?.State != PrinterState.Error || !SequenceEqual(previous?.HmsCodes, current.HmsCodes)))
         {
             string description = HmsResolver.Description(current.HmsCodes, printer.Serial, pl)
                 ?? (current.ErrorCode != 0
@@ -377,7 +377,7 @@ public sealed class PrinterStore
                     : AppSettings.Text("Drukarka zgłosiła błąd.", "The printer reported an error."));
             NotificationService.Post(AppSettings.Text("Błąd drukarki", "Printer error"), description, printer.Name);
         }
-        else if (current.State == PrinterState.Paused && previous?.State != PrinterState.Paused)
+        else if (AppSettings.NotifyPrintPaused && current.State == PrinterState.Paused && previous?.State != PrinterState.Paused)
         {
             NotificationService.Post(AppSettings.Text("Druk wstrzymany", "Print paused"),
                 current.JobName ?? AppSettings.Text("Drukarka oczekuje na działanie.", "The printer needs attention."), printer.Name);
@@ -385,11 +385,11 @@ public sealed class PrinterStore
 
         var previousLow = new HashSet<string>((previous?.AmsSlots ?? new()).Where(s => (s.RemainingPercent ?? 100) <= 15).Select(s => s.Id));
         var newLow = current.AmsSlots.Where(s => (s.RemainingPercent ?? 100) <= 15 && !previousLow.Contains(s.Id)).ToList();
-        if (newLow.FirstOrDefault() is { } slot)
+        if (AppSettings.NotifyLowFilament && newLow.FirstOrDefault() is { } slot)
             NotificationService.Post(AppSettings.Text("Niski poziom filamentu", "Low filament"),
                 $"{slot.Label} • {slot.Material} • {slot.RemainingPercent ?? 0}%", printer.Name);
 
-        if (IsHumidityHigh(current.AmsHumidity) && !IsHumidityHigh(previous?.AmsHumidity))
+        if (AppSettings.NotifyHighAmsHumidity && IsHumidityHigh(current.AmsHumidity) && !IsHumidityHigh(previous?.AmsHumidity))
             NotificationService.Post(AppSettings.Text("Wysoka wilgotność AMS", "High AMS humidity"),
                 AppSettings.Text("Sprawdź lub osusz pochłaniacz wilgoci.", "Check or dry the desiccant."), printer.Name);
     }

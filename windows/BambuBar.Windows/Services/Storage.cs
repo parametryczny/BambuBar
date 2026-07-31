@@ -120,6 +120,36 @@ public static class AppSettings
         set => Defaults.SetBool("dashboard-compact-mode", value);
     }
 
+    public static bool NotifyPrintFinished
+    {
+        get => Defaults.GetBool("notifications-print-finished", true);
+        set => Defaults.SetBool("notifications-print-finished", value);
+    }
+
+    public static bool NotifyPrinterError
+    {
+        get => Defaults.GetBool("notifications-printer-error", true);
+        set => Defaults.SetBool("notifications-printer-error", value);
+    }
+
+    public static bool NotifyPrintPaused
+    {
+        get => Defaults.GetBool("notifications-print-paused", true);
+        set => Defaults.SetBool("notifications-print-paused", value);
+    }
+
+    public static bool NotifyLowFilament
+    {
+        get => Defaults.GetBool("notifications-low-filament", true);
+        set => Defaults.SetBool("notifications-low-filament", value);
+    }
+
+    public static bool NotifyHighAmsHumidity
+    {
+        get => Defaults.GetBool("notifications-high-ams-humidity", true);
+        set => Defaults.SetBool("notifications-high-ams-humidity", value);
+    }
+
     public static string Text(string polish, string english) => Polish ? polish : english;
 
     private static string DefaultLanguage()
