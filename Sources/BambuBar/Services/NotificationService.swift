@@ -1,24 +1,55 @@
-import Foundation
+import AppKit
+import UserNotifications
 
-enum NotificationService {
+/// Posts native notifications through UNUserNotificationCenter so they belong to BambuBar
+/// (its own icon, and tapping brings BambuBar forward) instead of the AppleScript host that
+/// `osascript display notification` runs under.
+final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+    static let shared = NotificationService()
+
+    private var authorizationRequested = false
+
+    private override init() { super.init() }
+
+    /// Registers the delegate and requests permission. Call once at launch.
+    static func configure() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = shared
+        guard !shared.authorizationRequested else { return }
+        shared.authorizationRequested = true
+        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
     static func post(title: String, body: String, subtitle: String? = nil) {
-        let safeTitle = escaped(title)
-        let safeBody = escaped(body)
-        let subtitleClause = subtitle.map { " subtitle \"\(escaped($0))\"" } ?? ""
-        let script = "display notification \"\(safeBody)\" with title \"\(safeTitle)\"\(subtitleClause)"
-        DispatchQueue.global(qos: .utility).async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = ["-e", script]
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            try? process.run()
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        if let subtitle, !subtitle.isEmpty { content.subtitle = subtitle }
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+
+    // Show banners even when BambuBar is the active app.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
+    }
+
+    // Bring BambuBar forward and open the dashboard when a notification is tapped.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        await MainActor.run {
+            NSApp.activate(ignoringOtherApps: true)
+            NotificationCenter.default.post(name: .bambuBarShowDashboard, object: nil)
         }
     }
+}
 
-    private static func escaped(_ value: String) -> String {
-        value.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: " ")
-    }
+extension Notification.Name {
+    static let bambuBarShowDashboard = Notification.Name("pl.bambubar.showDashboard")
 }

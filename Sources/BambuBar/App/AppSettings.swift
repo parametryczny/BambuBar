@@ -26,11 +26,22 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var notifyFinished: Bool { didSet { defaults.set(notifyFinished, forKey: "notify-finished") } }
+    @Published var notifyError: Bool { didSet { defaults.set(notifyError, forKey: "notify-error") } }
+    @Published var notifyPaused: Bool { didSet { defaults.set(notifyPaused, forKey: "notify-paused") } }
+    @Published var notifyLowFilament: Bool { didSet { defaults.set(notifyLowFilament, forKey: "notify-low-filament") } }
+    @Published var notifyHumidity: Bool { didSet { defaults.set(notifyHumidity, forKey: "notify-humidity") } }
+
     private let defaults = BambuDefaults.shared
 
     private init() {
         language = AppLanguage(rawValue: defaults.string(forKey: "app-language") ?? "pl") ?? .pl
         theme = AppTheme(rawValue: defaults.string(forKey: "app-theme") ?? "dark") ?? .dark
+        notifyFinished = defaults.object(forKey: "notify-finished") as? Bool ?? true
+        notifyError = defaults.object(forKey: "notify-error") as? Bool ?? true
+        notifyPaused = defaults.object(forKey: "notify-paused") as? Bool ?? true
+        notifyLowFilament = defaults.object(forKey: "notify-low-filament") as? Bool ?? true
+        notifyHumidity = defaults.object(forKey: "notify-humidity") as? Bool ?? true
     }
 
     func applyTheme() {

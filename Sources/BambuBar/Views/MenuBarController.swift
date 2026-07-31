@@ -11,6 +11,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     private var outsideClickMonitor: Any?
     private var addWindow: AddPrinterWindowController?
     private var settingsWindow: SettingsWindowController?
+    private var notificationObserver: Any?
 
     init(store: PrinterStore) {
         self.store = store
@@ -49,6 +50,19 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
                 self?.updateStatusItem()
             }
         }
+        notificationObserver = NotificationCenter.default.addObserver(
+            forName: .bambuBarShowDashboard, object: nil, queue: .main
+        ) { [weak self] _ in
+            DispatchQueue.main.async { self?.showDashboard() }
+        }
+    }
+
+    func showDashboard() {
+        guard let button = statusItem.button, !popover.isShown else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        popover.appearance = AppSettings.shared.appearance
+        popover.contentViewController?.view.appearance = AppSettings.shared.appearance
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
     private func updateStatusItem() {

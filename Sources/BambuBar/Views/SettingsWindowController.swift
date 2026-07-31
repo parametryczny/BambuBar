@@ -16,11 +16,17 @@ final class SettingsWindowController: NSWindowController {
     private let versionLabel = NSTextField(labelWithString: "")
     private let supportButton = NSButton()
     private let closeButton = NSButton()
+    private let notificationsLabel = NSTextField(labelWithString: "")
+    private let notifyFinishedCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let notifyErrorCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let notifyPausedCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let notifyLowFilamentCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let notifyHumidityCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private var settingsSubscription: AnyCancellable?
 
     init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 330),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 470),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -105,7 +111,18 @@ final class SettingsWindowController: NSWindowController {
         actionRow.alignment = .centerY
         actionRow.spacing = 8
 
-        let stack = NSStackView(views: [titleLabel, authorLabel, profileRow, form, launchRow, separator, actionRow])
+        notificationsLabel.textColor = .secondaryLabelColor
+        let notificationChecks = [notifyFinishedCheck, notifyErrorCheck, notifyPausedCheck, notifyLowFilamentCheck, notifyHumidityCheck]
+        for check in notificationChecks {
+            check.target = self
+            check.action = #selector(notificationToggled)
+        }
+        let notificationsStack = NSStackView(views: [notificationsLabel] + notificationChecks)
+        notificationsStack.orientation = .vertical
+        notificationsStack.alignment = .leading
+        notificationsStack.spacing = 6
+
+        let stack = NSStackView(views: [titleLabel, authorLabel, profileRow, form, launchRow, notificationsStack, separator, actionRow])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 16
@@ -119,6 +136,7 @@ final class SettingsWindowController: NSWindowController {
             profileRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             form.widthAnchor.constraint(equalTo: stack.widthAnchor),
             launchRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            notificationsStack.widthAnchor.constraint(equalTo: stack.widthAnchor),
             separator.widthAnchor.constraint(equalTo: stack.widthAnchor),
             actionRow.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
@@ -141,6 +159,17 @@ final class SettingsWindowController: NSWindowController {
         themeControl.selectedSegment = settings.theme == .light ? 0 : 1
         launchLabel.stringValue = settings.text("Uruchamiaj przy logowaniu", "Launch at login")
         launchSwitch.state = LaunchAtLoginManager.isEnabled ? .on : .off
+        notificationsLabel.stringValue = settings.text("Powiadomienia:", "Notifications:")
+        notifyFinishedCheck.title = settings.text("Druk zakończony", "Print finished")
+        notifyErrorCheck.title = settings.text("Błąd drukarki", "Printer error")
+        notifyPausedCheck.title = settings.text("Druk wstrzymany", "Print paused")
+        notifyLowFilamentCheck.title = settings.text("Niski poziom filamentu", "Low filament")
+        notifyHumidityCheck.title = settings.text("Wysoka wilgotność AMS", "High AMS humidity")
+        notifyFinishedCheck.state = settings.notifyFinished ? .on : .off
+        notifyErrorCheck.state = settings.notifyError ? .on : .off
+        notifyPausedCheck.state = settings.notifyPaused ? .on : .off
+        notifyLowFilamentCheck.state = settings.notifyLowFilament ? .on : .off
+        notifyHumidityCheck.state = settings.notifyHumidity ? .on : .off
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
             ?? "0.1.17"
         versionLabel.stringValue = settings.text("Wersja \(version)", "Version \(version)") + " • \(AccessCodeStore.modeName)"
@@ -163,6 +192,15 @@ final class SettingsWindowController: NSWindowController {
             launchSwitch.state = LaunchAtLoginManager.isEnabled ? .on : .off
             NotificationService.post(title: "BambuBar", body: error.localizedDescription)
         }
+    }
+
+    @objc private func notificationToggled() {
+        let settings = AppSettings.shared
+        settings.notifyFinished = notifyFinishedCheck.state == .on
+        settings.notifyError = notifyErrorCheck.state == .on
+        settings.notifyPaused = notifyPausedCheck.state == .on
+        settings.notifyLowFilament = notifyLowFilamentCheck.state == .on
+        settings.notifyHumidity = notifyHumidityCheck.state == .on
     }
 
     @objc private func openSupport() {

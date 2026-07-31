@@ -100,6 +100,7 @@ final class BambuBarApp: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.shared.applyTheme()
+        NotificationService.configure()
         if LaunchAtLoginManager.isEnabled { try? LaunchAtLoginManager.setEnabled(true) }
         let store = PrinterStore()
         menuBarController = MenuBarController(store: store)

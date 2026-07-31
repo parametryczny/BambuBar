@@ -350,20 +350,20 @@ final class PrinterStore: ObservableObject {
 
     private func notifyChanges(printer: SavedPrinter, previous: PrinterTelemetry?, current: PrinterTelemetry) {
         let settings = AppSettings.shared
-        if current.state == .finished, previous?.state != .finished {
+        if settings.notifyFinished, current.state == .finished, previous?.state != .finished {
             NotificationService.post(
                 title: settings.text("Druk zakończony", "Print finished"),
                 body: current.jobName ?? settings.text("Zadanie zostało ukończone.", "The job has completed."),
                 subtitle: printer.name
             )
         }
-        if current.state == .error, previous?.state != .error || previous?.hmsCodes != current.hmsCodes {
+        if settings.notifyError, current.state == .error, previous?.state != .error || previous?.hmsCodes != current.hmsCodes {
             let description = HMSResolver.shared.description(for: current.hmsCodes, serial: printer.serial, language: settings.language)
                 ?? (current.errorCode != 0
                     ? String(format: settings.text("Kod błędu: 0x%llX", "Error code: 0x%llX"), current.errorCode)
                     : settings.text("Drukarka zgłosiła błąd.", "The printer reported an error."))
             NotificationService.post(title: settings.text("Błąd drukarki", "Printer error"), body: description, subtitle: printer.name)
-        } else if current.state == .paused, previous?.state != .paused {
+        } else if settings.notifyPaused, current.state == .paused, previous?.state != .paused {
             NotificationService.post(
                 title: settings.text("Druk wstrzymany", "Print paused"),
                 body: current.jobName ?? settings.text("Drukarka oczekuje na działanie.", "The printer needs attention."),
@@ -373,7 +373,7 @@ final class PrinterStore: ObservableObject {
 
         let previousLow = Set(previous?.amsSlots.filter { ($0.remainingPercent ?? 100) <= 15 }.map(\.id) ?? [])
         let newLow = current.amsSlots.filter { ($0.remainingPercent ?? 100) <= 15 && !previousLow.contains($0.id) }
-        if let slot = newLow.first {
+        if settings.notifyLowFilament, let slot = newLow.first {
             NotificationService.post(
                 title: settings.text("Niski poziom filamentu", "Low filament"),
                 body: "\(slot.label) • \(slot.material) • \(slot.remainingPercent ?? 0)%",
@@ -381,7 +381,7 @@ final class PrinterStore: ObservableObject {
             )
         }
 
-        if isHumidityHigh(current.amsHumidity), !isHumidityHigh(previous?.amsHumidity) {
+        if settings.notifyHumidity, isHumidityHigh(current.amsHumidity), !isHumidityHigh(previous?.amsHumidity) {
             NotificationService.post(
                 title: settings.text("Wysoka wilgotność AMS", "High AMS humidity"),
                 body: settings.text("Sprawdź lub osusz pochłaniacz wilgoci.", "Check or dry the desiccant."),
