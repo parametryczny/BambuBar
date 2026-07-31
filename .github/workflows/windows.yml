@@ -28,6 +28,8 @@ jobs:
         run: dotnet restore BambuBar.Windows/BambuBar.Windows.csproj
       - name: Build
         run: dotnet build BambuBar.Windows/BambuBar.Windows.csproj -c Release --no-restore
+      - name: Test Bambu Studio config import
+        run: .\BambuBar.Windows\bin\Release\net8.0-windows\BambuBar.exe --self-test
       - name: Publish self-contained single-file exe
         run: dotnet publish BambuBar.Windows/BambuBar.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o publish
       - name: Package ZIP

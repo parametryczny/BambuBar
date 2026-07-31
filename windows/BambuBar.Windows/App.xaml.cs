@@ -14,6 +14,20 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if (e.Args.Contains("--self-test", StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                BambuStudioConfig.RunSelfTest();
+                Shutdown(0);
+            }
+            catch
+            {
+                Shutdown(1);
+            }
+            return;
+        }
+
         // Windows-1252 is not registered by default on .NET 8; the status parser uses it to
         // repair mis-encoded print names.
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
