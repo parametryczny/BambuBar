@@ -12,6 +12,7 @@ public sealed class TrayIcon : IDisposable
     private readonly PrinterStore _store;
     private readonly NotifyIcon _notifyIcon;
     private DashboardWindow? _dashboard;
+    private SettingsWindow? _settings;
 
     public TrayIcon(PrinterStore store)
     {
@@ -38,6 +39,8 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add(new ToolStripMenuItem(AppSettings.Text("Szukaj drukarek…", "Scan for printers…"), null, (_, _) => { ShowDashboard(); _store.Scan(); }));
         menu.Items.Add(new ToolStripMenuItem(AppSettings.Text("Połącz ponownie", "Reconnect all"), null, (_, _) => _store.ReconnectAll()));
         menu.Items.Add(new ToolStripSeparator());
+
+        menu.Items.Add(new ToolStripMenuItem(AppSettings.Text("Ustawienia…", "Settings…"), null, (_, _) => ShowSettings()));
 
         var language = new ToolStripMenuItem(AppSettings.Text("Język: Polski", "Language: English"));
         language.Click += (_, _) => { AppSettings.Polish = !AppSettings.Polish; RebuildMenu(); };
@@ -74,6 +77,18 @@ public sealed class TrayIcon : IDisposable
         _dashboard.Show();
         _dashboard.Activate();
         _dashboard.WindowState = System.Windows.WindowState.Normal;
+    }
+
+    private void ShowSettings()
+    {
+        if (_settings is null)
+        {
+            _settings = new SettingsWindow();
+            _settings.Closed += (_, _) => _settings = null;
+        }
+        _settings.Show();
+        _settings.Activate();
+        _settings.WindowState = System.Windows.WindowState.Normal;
     }
 
     public void ShowNotification(string title, string body, string? subtitle)
