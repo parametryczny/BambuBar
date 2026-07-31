@@ -1,0 +1,41 @@
+name: Windows build
+
+on:
+  push:
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows.yml'
+  pull_request:
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore BambuBar.Windows/BambuBar.Windows.csproj
+      - name: Build
+        run: dotnet build BambuBar.Windows/BambuBar.Windows.csproj -c Release --no-restore
+      - name: Publish self-contained single-file exe
+        run: dotnet publish BambuBar.Windows/BambuBar.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o publish
+      - name: Package ZIP
+        shell: pwsh
+        run: Compress-Archive -Path publish/BambuBar.exe -DestinationPath publish/BambuBar-Windows-x64.zip -Force
+      - name: Upload packaged application
+        uses: actions/upload-artifact@v4
+        with:
+          name: BambuBar-Windows-x64
+          path: windows/publish/BambuBar-Windows-x64.zip
+          if-no-files-found: error
