@@ -60,9 +60,11 @@ public static class StatusParser
         if (report.TryGetProperty("ams", out var ams) && ams.ValueKind == JsonValueKind.Object)
         {
             var (slots, humidity, temperature) = ParseAms(ams);
-            result.AmsSlots = slots;
-            result.AmsHumidity = humidity;
-            result.AmsTemperature = temperature;
+            // Partial status updates during a print often carry only tray_now without the tray
+            // list; keep the last known slots then instead of blanking the AMS display.
+            if (slots.Count > 0) result.AmsSlots = slots;
+            if (humidity is { }) result.AmsHumidity = humidity;
+            if (temperature is { }) result.AmsTemperature = temperature;
         }
 
         if (result.ErrorCode != 0) result.State = PrinterState.Error;

@@ -84,3 +84,12 @@ struct DiscoveredPrinter: Identifiable, Hashable, Sendable {
     let model: String
     let host: String
 }
+
+/// Only the enclosed X1 family (and H2D) carry a real chamber temperature sensor. A1, A1 mini
+/// and P-series printers report a placeholder value that should not be shown as a chamber
+/// reading. Detected from the serial-number model prefix.
+func printerHasChamberSensor(serial: String) -> Bool {
+    let prefix = serial.prefix(3).uppercased()
+    // 00M = X1 Carbon, 00W = X1, 03W = X1E, 094 = H2D.
+    return ["00M", "00W", "03W", "094"].contains(String(prefix))
+}
