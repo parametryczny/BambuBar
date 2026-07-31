@@ -13,7 +13,16 @@ enum BambuStatusParser {
         if let value = number(report["nozzle_target_temper"]) { result.nozzleTargetTemperature = value }
         if let value = number(report["bed_temper"]) { result.bedTemperature = value }
         if let value = number(report["bed_target_temper"]) { result.bedTargetTemperature = value }
-        if let value = number(report["chamber_temper"]) { result.chamberTemperature = value }
+        // Modern firmware reports the real chamber temperature under device.ctc.info.temp;
+        // printers without a chamber sensor (A1, P1) omit it. The legacy chamber_temper field is
+        // only a fixed placeholder on those models, so accept it only as a plausible fallback.
+        if let device = report["device"] as? [String: Any],
+           let info = (device["ctc"] as? [String: Any])?["info"] as? [String: Any],
+           let value = number(info["temp"]) {
+            result.chamberTemperature = value
+        } else if let value = number(report["chamber_temper"]), value > 10 {
+            result.chamberTemperature = value
+        }
         if let value = integer(report["layer_num"]) { result.currentLayer = value }
         if let value = integer(report["total_layer_num"]) { result.totalLayers = value }
         if let stage = report["stage"] as? [String: Any], let value = integer(stage["_id"]) {

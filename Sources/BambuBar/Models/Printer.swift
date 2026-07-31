@@ -84,12 +84,3 @@ struct DiscoveredPrinter: Identifiable, Hashable, Sendable {
     let model: String
     let host: String
 }
-
-/// The A1 family and the P1 family have no chamber temperature sensor and report a placeholder
-/// that should not be shown as a chamber reading. Every other model (X1, X2, P2, H2D…) has one,
-/// so default to showing it. Detected from the serial-number model prefix.
-func printerHasChamberSensor(serial: String) -> Bool {
-    let prefix = String(serial.prefix(3)).uppercased()
-    // 030 = A1 mini, 039 = A1, 01S/01P = P1S/P1P.
-    return !["030", "039", "01S", "01P"].contains(prefix)
-}

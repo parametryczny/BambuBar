@@ -34,7 +34,20 @@ public static class StatusParser
         if (Num(report, "nozzle_target_temper") is { } ntt) result.NozzleTargetTemperature = ntt;
         if (Num(report, "bed_temper") is { } bt) result.BedTemperature = bt;
         if (Num(report, "bed_target_temper") is { } btt) result.BedTargetTemperature = btt;
-        if (Num(report, "chamber_temper") is { } ct) result.ChamberTemperature = ct;
+        // Modern firmware reports the real chamber temperature under device.ctc.info.temp;
+        // printers without a chamber sensor (A1, P1) omit it and chamber_temper is only a fixed
+        // placeholder there, so accept the legacy field only as a plausible fallback.
+        if (report.TryGetProperty("device", out var device) && device.ValueKind == JsonValueKind.Object
+            && device.TryGetProperty("ctc", out var ctc) && ctc.ValueKind == JsonValueKind.Object
+            && ctc.TryGetProperty("info", out var ctcInfo) && ctcInfo.ValueKind == JsonValueKind.Object
+            && Num(ctcInfo, "temp") is { } chamber)
+        {
+            result.ChamberTemperature = chamber;
+        }
+        else if (Num(report, "chamber_temper") is { } legacyChamber && legacyChamber > 10)
+        {
+            result.ChamberTemperature = legacyChamber;
+        }
         if (Int(report, "layer_num") is { } ln) result.CurrentLayer = ln;
         if (Int(report, "total_layer_num") is { } tln) result.TotalLayers = tln;
 

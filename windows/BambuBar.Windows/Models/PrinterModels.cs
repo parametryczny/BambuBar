@@ -115,16 +115,3 @@ public sealed class DiscoveredPrinter
     public string Host { get; set; } = "";
 }
 
-public static class PrinterCapabilities
-{
-    /// <summary>
-    /// The A1 family and the P1 family have no chamber temperature sensor and report a placeholder
-    /// that should not be shown; every other model (X1, X2, P2, H2D…) has one, so default to
-    /// showing it. Detected from the serial prefix (030 A1 mini, 039 A1, 01S/01P P1S/P1P).
-    /// </summary>
-    public static bool HasChamberSensor(string serial)
-    {
-        string prefix = (serial.Length >= 3 ? serial[..3] : serial).ToUpperInvariant();
-        return prefix is not ("030" or "039" or "01S" or "01P");
-    }
-}

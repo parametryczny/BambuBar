@@ -832,7 +832,7 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
         nozzleMetric.value = nozzle
         bedMetric.value = bed
         chamberMetric.value = telemetry.chamberTemperature.map { "\(Int($0.rounded()))°" } ?? ""
-        chamberMetric.isHidden = telemetry.chamberTemperature == nil || !printerHasChamberSensor(serial: serial)
+        chamberMetric.isHidden = telemetry.chamberTemperature == nil
         amsLabel.stringValue = amsSummary(telemetry)
         amsLabel.textColor = isHumidityHigh(telemetry.amsHumidity) ? .systemOrange : .secondaryLabelColor
 
