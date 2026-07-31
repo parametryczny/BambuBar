@@ -22,9 +22,9 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             onAdd: { [weak self] in self?.showAddPrinter() },
             onEdit: { [weak self] printer in self?.showEditPrinter(printer) },
             onReconnect: { [weak store] printer in store?.reconnect(printer) },
-            onPreferredWidth: { [weak self] width in
-                guard let self, self.popover.contentSize.width != width else { return }
-                self.popover.contentSize = NSSize(width: width, height: self.popover.contentSize.height)
+            onPreferredContentSize: { [weak self] size in
+                guard let self, self.popover.contentSize != size else { return }
+                self.popover.contentSize = size
             }
         )
         popover.contentSize = NSSize(width: 480, height: 650)

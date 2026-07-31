@@ -16,6 +16,8 @@ final class SettingsWindowController: NSWindowController {
     private let versionLabel = NSTextField(labelWithString: "")
     private let supportButton = NSButton()
     private let closeButton = NSButton()
+    private let updateButton = NSButton()
+    private let updateStatusLabel = NSTextField(labelWithString: "")
     private let notificationsLabel = NSTextField(labelWithString: "")
     private let notifyFinishedCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let notifyErrorCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -26,7 +28,7 @@ final class SettingsWindowController: NSWindowController {
 
     init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 470),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 512),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -111,6 +113,20 @@ final class SettingsWindowController: NSWindowController {
         actionRow.alignment = .centerY
         actionRow.spacing = 8
 
+        updateButton.target = self
+        updateButton.action = #selector(checkForUpdates)
+        updateButton.bezelStyle = .rounded
+        updateButton.controlSize = .small
+        updateButton.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Updates")
+        updateButton.imagePosition = .imageLeading
+        updateStatusLabel.textColor = .secondaryLabelColor
+        updateStatusLabel.font = .systemFont(ofSize: 11)
+        updateStatusLabel.lineBreakMode = .byTruncatingTail
+        let updateRow = NSStackView(views: [updateButton, NSView(), updateStatusLabel])
+        updateRow.orientation = .horizontal
+        updateRow.alignment = .centerY
+        updateRow.spacing = 8
+
         notificationsLabel.textColor = .secondaryLabelColor
         let notificationChecks = [notifyFinishedCheck, notifyErrorCheck, notifyPausedCheck, notifyLowFilamentCheck, notifyHumidityCheck]
         for check in notificationChecks {
@@ -122,7 +138,7 @@ final class SettingsWindowController: NSWindowController {
         notificationsStack.alignment = .leading
         notificationsStack.spacing = 6
 
-        let stack = NSStackView(views: [titleLabel, authorLabel, profileRow, form, launchRow, notificationsStack, separator, actionRow])
+        let stack = NSStackView(views: [titleLabel, authorLabel, profileRow, form, launchRow, notificationsStack, separator, updateRow, actionRow])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 16
@@ -138,6 +154,7 @@ final class SettingsWindowController: NSWindowController {
             launchRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             notificationsStack.widthAnchor.constraint(equalTo: stack.widthAnchor),
             separator.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            updateRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             actionRow.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
     }
@@ -175,6 +192,7 @@ final class SettingsWindowController: NSWindowController {
         versionLabel.stringValue = settings.text("Wersja \(version)", "Version \(version)") + " • \(AccessCodeStore.modeName)"
         supportButton.title = settings.text("Wesprzyj projekt", "Support the project")
         closeButton.title = settings.text("Gotowe", "Done")
+        updateButton.title = settings.text("Sprawdź aktualizacje", "Check for updates")
     }
 
     @objc private func languageChanged() {
@@ -201,6 +219,91 @@ final class SettingsWindowController: NSWindowController {
         settings.notifyPaused = notifyPausedCheck.state == .on
         settings.notifyLowFilament = notifyLowFilamentCheck.state == .on
         settings.notifyHumidity = notifyHumidityCheck.state == .on
+    }
+
+    @objc private func checkForUpdates() {
+        let settings = AppSettings.shared
+        updateButton.isEnabled = false
+        updateStatusLabel.textColor = .secondaryLabelColor
+        updateStatusLabel.stringValue = settings.text("Sprawdzam…", "Checking…")
+        Task { @MainActor in
+            defer { updateButton.isEnabled = true }
+            do {
+                let release = try await UpdateService.latestRelease()
+                if UpdateService.isNewer(release.version, than: UpdateService.currentVersion) {
+                    updateStatusLabel.stringValue = ""
+                    presentUpdateAvailable(release)
+                } else {
+                    updateStatusLabel.stringValue = settings.text("Masz najnowszą wersję.", "You have the latest version.")
+                }
+            } catch {
+                updateStatusLabel.stringValue = ""
+                presentAlert(
+                    title: settings.text("Nie udało się sprawdzić aktualizacji", "Could not check for updates"),
+                    message: error.localizedDescription
+                )
+            }
+        }
+    }
+
+    private func presentUpdateAvailable(_ release: UpdateService.Release) {
+        let settings = AppSettings.shared
+        let alert = NSAlert()
+        alert.messageText = settings.text("Dostępna aktualizacja: \(release.version)", "Update available: \(release.version)")
+        alert.informativeText = settings.text(
+            "Masz wersję \(UpdateService.currentVersion). Zainstalować \(release.version)? BambuBar pobierze aktualizację i uruchomi się ponownie.",
+            "You have \(UpdateService.currentVersion). Install \(release.version)? BambuBar will download the update and restart."
+        )
+        alert.addButton(withTitle: settings.text("Zainstaluj", "Install"))
+        alert.addButton(withTitle: settings.text("Otwórz stronę", "Open page"))
+        alert.addButton(withTitle: settings.text("Anuluj", "Cancel"))
+        let handle: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            switch response {
+            case .alertFirstButtonReturn: self?.installUpdate(release)
+            case .alertSecondButtonReturn: NSWorkspace.shared.open(release.pageURL)
+            default: break
+            }
+        }
+        if let window { alert.beginSheetModal(for: window, completionHandler: handle) }
+        else { handle(alert.runModal()) }
+    }
+
+    private func installUpdate(_ release: UpdateService.Release) {
+        let settings = AppSettings.shared
+        updateButton.isEnabled = false
+        updateStatusLabel.textColor = .secondaryLabelColor
+        updateStatusLabel.stringValue = settings.text("Pobieram i instaluję…", "Downloading and installing…")
+        Task { @MainActor in
+            do {
+                try await UpdateService.downloadAndInstall(release)
+                // The helper relaunches the app; this process is about to terminate.
+            } catch {
+                updateButton.isEnabled = true
+                updateStatusLabel.stringValue = ""
+                let alert = NSAlert()
+                alert.messageText = settings.text("Instalacja nie powiodła się", "Installation failed")
+                alert.informativeText = error.localizedDescription + "\n\n" + settings.text(
+                    "Otwórz stronę wydania, aby pobrać ręcznie.",
+                    "Open the release page to download it manually."
+                )
+                alert.addButton(withTitle: settings.text("Otwórz stronę", "Open page"))
+                alert.addButton(withTitle: "OK")
+                let openPage: (NSApplication.ModalResponse) -> Void = { response in
+                    if response == .alertFirstButtonReturn { NSWorkspace.shared.open(release.pageURL) }
+                }
+                if let window { alert.beginSheetModal(for: window, completionHandler: openPage) }
+                else { openPage(alert.runModal()) }
+            }
+        }
+    }
+
+    private func presentAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        if let window { alert.beginSheetModal(for: window, completionHandler: nil) }
+        else { alert.runModal() }
     }
 
     @objc private func openSupport() {

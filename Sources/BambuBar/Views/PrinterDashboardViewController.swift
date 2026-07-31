@@ -3,13 +3,19 @@ import Combine
 
 private let printerCardPasteboardType = NSPasteboard.PasteboardType("pl.bambubar.printer-card")
 
+/// Flipped so a scroll's document anchors its content to the top-left; short content then
+/// sits at the top instead of the bottom of the clip view.
+private final class FlippedDocumentView: NSView {
+    override var isFlipped: Bool { true }
+}
+
 @MainActor
 final class PrinterDashboardViewController: NSViewController {
     private let store: PrinterStore
     private let onAdd: () -> Void
     private let onEdit: (SavedPrinter) -> Void
     private let onReconnect: (SavedPrinter) -> Void
-    private let onPreferredWidth: (CGFloat) -> Void
+    private let onPreferredContentSize: (NSSize) -> Void
     private let cardsStack = NSStackView()
     private let summaryLabel = NSTextField(labelWithString: "")
     private let resetButton = NSButton()
@@ -30,13 +36,13 @@ final class PrinterDashboardViewController: NSViewController {
         onAdd: @escaping () -> Void,
         onEdit: @escaping (SavedPrinter) -> Void,
         onReconnect: @escaping (SavedPrinter) -> Void,
-        onPreferredWidth: @escaping (CGFloat) -> Void
+        onPreferredContentSize: @escaping (NSSize) -> Void
     ) {
         self.store = store
         self.onAdd = onAdd
         self.onEdit = onEdit
         self.onReconnect = onReconnect
-        self.onPreferredWidth = onPreferredWidth
+        self.onPreferredContentSize = onPreferredContentSize
         prefersCompactMode = BambuDefaults.shared.bool(forKey: "dashboard-compact-mode")
         super.init(nibName: nil, bundle: nil)
         subscription = store.objectWillChange.sink { [weak self] _ in
@@ -99,7 +105,7 @@ final class PrinterDashboardViewController: NSViewController {
         cardsStack.edgeInsets = NSEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
         cardsStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let document = NSView()
+        let document = FlippedDocumentView()
         document.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(cardsStack)
         let scroll = NSScrollView()
@@ -131,6 +137,24 @@ final class PrinterDashboardViewController: NSViewController {
         refreshDashboard()
     }
 
+    /// Height the popover should take so it fits the printer cards (or compact rows) without
+    /// leaving empty space, capped so large fleets scroll instead of growing off-screen.
+    private func preferredPopoverHeight(compact: Bool, columns: Int) -> CGFloat {
+        let printerCount = store.printers.count
+        let insets: CGFloat = 12                 // cardsStack top + bottom edge insets
+        let chrome: CGFloat = 12 + 36 + 6 + 8    // view top + header + gap + scroll bottom inset
+        let content: CGFloat
+        if printerCount == 0 {
+            content = 120 + insets
+        } else if compact {
+            content = CGFloat(printerCount) * 31 + CGFloat(printerCount - 1) * 3 + insets
+        } else {
+            let rows = Int(ceil(Double(printerCount) / Double(max(1, columns))))
+            content = CGFloat(rows) * 174 + CGFloat(max(0, rows - 1)) * 8 + insets
+        }
+        return min(650, chrome + content)
+    }
+
     private func scheduleRefresh() {
         refreshWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in self?.refreshDashboard() }
@@ -149,7 +173,10 @@ final class PrinterDashboardViewController: NSViewController {
         let useCompactMode = supportsCompactMode && prefersCompactMode
         let expandedColumnCount = !useCompactMode && store.printers.count >= 9 ? 3 : 2
         let panelWidth: CGFloat = expandedColumnCount == 3 ? 720 : 480
-        onPreferredWidth(panelWidth)
+        onPreferredContentSize(NSSize(
+            width: panelWidth,
+            height: preferredPopoverHeight(compact: useCompactMode, columns: expandedColumnCount)
+        ))
         compactButton.isHidden = !supportsCompactMode
         compactButton.title = settings.text(useCompactMode ? "Rozwiń" : "Zwiń", useCompactMode ? "Expand" : "Collapse")
         compactButton.toolTip = settings.text(
