@@ -11,13 +11,23 @@
 
 ---
 
+## Downloads / Pobieranie
+
+- [macOS Local](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-0.1.18-macOS-Local.zip)
+- [macOS Keychain](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-0.1.18-macOS-Keychain.zip)
+- [Windows x64 — self-contained beta](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-Windows-x64.zip)
+
+The Windows build does not require a separate .NET installation. / Wersja Windows nie wymaga osobnej instalacji .NET.
+
+---
+
 ## English
 
-A compact, MIT-licensed macOS menu bar monitor for Bambu Lab 3D printers. BambuBar discovers printers on the local network and presents larger fleets in an adaptive two- or three-column macOS-style glass dashboard.
+A compact, MIT-licensed macOS menu bar and Windows system-tray monitor for Bambu Lab 3D printers. BambuBar discovers printers on the local network and presents larger fleets in an adaptive dashboard.
 
 ### Latest changes
 
-Version 0.1.15 adds TLS certificate pinning and two downloads: **Local** for convenient preference-based access-code storage, and **Keychain** for storage in the macOS Keychain.
+Version 0.1.18 adds the first self-contained Windows x64 beta alongside the macOS Local and Keychain builds.
 
 [Read the full changelog](CHANGELOG.md)
 
@@ -35,14 +45,16 @@ Version 0.1.15 adds TLS certificate pinning and two downloads: **Local** for con
 - offers a Local build and a macOS Keychain build
 - pins each printer's TLS certificate after the first trusted connection
 - communicates locally without requiring a Bambu Cloud account
+- includes a self-contained Windows x64 system-tray build with per-user DPAPI encryption
 
 ### Requirements
 
-- macOS 26 or newer
-- a Mac and the printers on the same local network
+- macOS 26 or newer, or 64-bit Windows 10/11 for the Windows beta
+- a Mac or PC and the printers on the same local network
 - LAN access enabled on each printer
 - the serial number and Access Code/PIN for each printer
 - Swift 6 and Xcode Command Line Tools when building from source
+- .NET 8 SDK when building the Windows version from source
 
 ### Adding printers
 
@@ -80,6 +92,8 @@ chmod +x scripts/build-app.sh scripts/build-release.sh
 
 The applications are created at `dist/BambuBar.app` and `dist/BambuBar Keychain.app`. Run `./scripts/build-release.sh` to create both release ZIP archives.
 
+See [windows/README.md](windows/README.md) for Windows build instructions. GitHub Actions produces a self-contained `BambuBar.exe` that does not require the .NET runtime on the target PC.
+
 On the first launch, allow Local Network access when macOS asks for it.
 
 ### Tests
@@ -109,11 +123,11 @@ BambuBar is an independent project and is not affiliated with, endorsed by or sp
 
 ## Polski
 
-Kompaktowy monitor drukarek 3D Bambu Lab dla paska menu macOS, na licencji MIT. BambuBar wykrywa drukarki w sieci lokalnej i prezentuje większe floty na adaptacyjnym, „szklanym" pulpicie w stylu macOS z dwiema lub trzema kolumnami.
+Kompaktowy monitor drukarek 3D Bambu Lab dla paska menu macOS i zasobnika systemowego Windows, na licencji MIT. BambuBar wykrywa drukarki w sieci lokalnej i prezentuje większe floty na adaptacyjnym pulpicie.
 
 ### Najnowsze zmiany
 
-Wersja 0.1.15 dodaje pinning certyfikatu TLS oraz dwa warianty do pobrania: **Local** — wygodne przechowywanie kodów dostępu w ustawieniach aplikacji, oraz **Keychain** — przechowywanie w pęku kluczy macOS.
+Wersja 0.1.18 dodaje pierwszą samodzielną betę Windows x64 obok wariantów macOS Local i Keychain.
 
 [Zobacz pełny changelog](CHANGELOG.md)
 
@@ -131,14 +145,16 @@ Wersja 0.1.15 dodaje pinning certyfikatu TLS oraz dwa warianty do pobrania: **Lo
 - oferuje wariant Local oraz wariant z pękiem kluczy macOS
 - przypina (pinuje) certyfikat TLS każdej drukarki po pierwszym zaufanym połączeniu
 - komunikuje się lokalnie, bez konieczności posiadania konta Bambu Cloud
+- zawiera samodzielną wersję dla Windows x64 z ikoną w zasobniku i szyfrowaniem DPAPI
 
 ### Wymagania
 
-- macOS 26 lub nowszy
-- Mac i drukarki w tej samej sieci lokalnej
+- macOS 26 lub nowszy albo 64-bitowy Windows 10/11 dla wersji beta
+- Mac lub PC i drukarki w tej samej sieci lokalnej
 - włączony dostęp LAN na każdej drukarce
 - numer seryjny i kod dostępu (Access Code / PIN) każdej drukarki
 - Swift 6 i Xcode Command Line Tools przy budowaniu ze źródeł
+- .NET 8 SDK przy budowaniu wersji Windows ze źródeł
 
 ### Dodawanie drukarek
 
@@ -175,6 +191,8 @@ chmod +x scripts/build-app.sh scripts/build-release.sh
 ```
 
 Aplikacje powstają jako `dist/BambuBar.app` oraz `dist/BambuBar Keychain.app`. Uruchom `./scripts/build-release.sh`, aby utworzyć oba archiwa ZIP do wydania.
+
+Instrukcja budowania wersji Windows znajduje się w [windows/README.md](windows/README.md). GitHub Actions tworzy samodzielny `BambuBar.exe`, który nie wymaga środowiska .NET na komputerze docelowym.
 
 Przy pierwszym uruchomieniu zezwól na dostęp do sieci lokalnej, gdy macOS o to zapyta.
 

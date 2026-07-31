@@ -1,0 +1,256 @@
+using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using BambuBar.Models;
+using BambuBar.Services;
+
+namespace BambuBar.UI;
+
+public partial class DashboardWindow : Window
+{
+    private readonly PrinterStore _store;
+
+    public DashboardWindow(PrinterStore store)
+    {
+        InitializeComponent();
+        _store = store;
+        ScanButton.Click += (_, _) => _store.Scan();
+        AddButton.Click += (_, _) => OpenAddWindow();
+        _store.Updated += OnStoreUpdated;
+        Closed += (_, _) => _store.Updated -= OnStoreUpdated;
+        Rebuild();
+    }
+
+    public void RefreshLanguage() => Rebuild();
+
+    private void OnStoreUpdated(object? sender, EventArgs e) => Dispatcher.Invoke(Rebuild);
+
+    private void OpenAddWindow()
+    {
+        var window = new AddPrinterWindow(_store) { Owner = this };
+        window.ShowDialog();
+    }
+
+    private void Rebuild()
+    {
+        StatusLine.Text = _store.IsScanning
+            ? AppSettings.Text("Skanowanie…", "Scanning…")
+            : (_store.GlobalMessage ?? AppSettings.Text($"{_store.Printers.Count} drukarek • {_store.ActivePrintCount} drukuje",
+                                                        $"{_store.Printers.Count} printers • {_store.ActivePrintCount} printing"));
+        CardsPanel.Children.Clear();
+
+        if (_store.Printers.Count == 0)
+        {
+            CardsPanel.Children.Add(new TextBlock
+            {
+                Text = AppSettings.Text("Brak drukarek. Kliknij +, aby dodać.", "No printers. Click + to add one."),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9E)),
+                Margin = new Thickness(8)
+            });
+        }
+
+        foreach (var printer in _store.Printers)
+            CardsPanel.Children.Add(BuildCard(printer));
+    }
+
+    private Border BuildCard(SavedPrinter printer)
+    {
+        var telemetry = _store.Telemetry.TryGetValue(printer.Serial, out var t) ? t : new PrinterTelemetry();
+        _store.ConnectionMessages.TryGetValue(printer.Serial, out var message);
+        bool pl = AppSettings.Polish;
+
+        var stack = new StackPanel();
+
+        // Header: name + state pill
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var name = new TextBlock { Text = printer.Name, FontWeight = FontWeights.SemiBold, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis };
+        header.Children.Add(name);
+        var pill = StatePill(telemetry.State, pl);
+        Grid.SetColumn(pill, 1);
+        header.Children.Add(pill);
+        stack.Children.Add(header);
+
+        // Job name
+        stack.Children.Add(new TextBlock
+        {
+            Text = string.IsNullOrEmpty(telemetry.JobName) ? AppSettings.Text("Brak aktywnego zadania", "No active job") : telemetry.JobName!,
+            Foreground = Muted(),
+            FontSize = 11,
+            Margin = new Thickness(0, 4, 0, 6),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+
+        // Progress
+        var progressRow = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var bar = new ProgressBar { Minimum = 0, Maximum = 100, Value = telemetry.Progress, Height = 6, Foreground = Accent(telemetry.State), Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3C)), BorderThickness = new Thickness(0) };
+        progressRow.Children.Add(bar);
+        var percent = new TextBlock { Text = $"{telemetry.Progress}%", FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(percent, 1);
+        progressRow.Children.Add(percent);
+        stack.Children.Add(progressRow);
+
+        // Info line: ETA + layers
+        stack.Children.Add(InfoRow(
+            (Glyph: "⏱", Value: FormatEta(telemetry.RemainingMinutes)),
+            (Glyph: "▤", Value: telemetry.CurrentLayer is { } cl && telemetry.TotalLayers is { } tl ? $"{cl}/{tl}" : "—")));
+
+        // Temps
+        stack.Children.Add(InfoRow(
+            (Glyph: "🌡", Value: FormatTemp(telemetry.NozzleTemperature, telemetry.NozzleTargetTemperature)),
+            (Glyph: "▬", Value: FormatTemp(telemetry.BedTemperature, telemetry.BedTargetTemperature))));
+
+        // AMS
+        if (telemetry.AmsSlots.Count > 0)
+        {
+            var ams = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+            ams.Children.Add(new TextBlock { Text = "AMS", FontSize = 10, Foreground = Muted(), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
+            foreach (var slot in telemetry.AmsSlots)
+                ams.Children.Add(AmsChip(slot));
+            stack.Children.Add(ams);
+        }
+
+        // Connection message
+        if (!string.IsNullOrEmpty(message))
+            stack.Children.Add(new TextBlock { Text = message, FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x9F, 0x0A)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
+
+        // Actions
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        actions.Children.Add(SmallButton(AppSettings.Text("Połącz", "Reconnect"), () => _store.Reconnect(printer)));
+        actions.Children.Add(SmallButton(AppSettings.Text("Edytuj", "Edit"), () =>
+        {
+            var w = new AddPrinterWindow(_store, printer) { Owner = this };
+            w.ShowDialog();
+        }));
+        actions.Children.Add(SmallButton(AppSettings.Text("Usuń", "Remove"), () =>
+        {
+            var confirm = MessageBox.Show(this,
+                AppSettings.Text($"Usunąć drukarkę {printer.Name}?", $"Remove printer {printer.Name}?"),
+                "BambuBar", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm == MessageBoxResult.Yes) _store.Remove(printer);
+        }));
+        stack.Children.Add(actions);
+
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x2C, 0x2C, 0x2E)),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(12),
+            Margin = new Thickness(6),
+            Width = 232,
+            Child = stack
+        };
+    }
+
+    private static Border StatePill(PrinterState state, bool pl)
+    {
+        var color = ParseHex(state.AccentHex() + "FF");
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x33, color.R, color.G, color.B)),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(6, 2, 6, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock { Text = state.Label(pl), FontSize = 10, Foreground = new SolidColorBrush(color), FontWeight = FontWeights.SemiBold }
+        };
+    }
+
+    private static Grid InfoRow((string Glyph, string Value) left, (string Glyph, string Value) right)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 2, 0, 0) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.Children.Add(Cell(left.Glyph, left.Value, 0));
+        grid.Children.Add(Cell(right.Glyph, right.Value, 1));
+        return grid;
+    }
+
+    private static StackPanel Cell(string glyph, string value, int column)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        panel.Children.Add(new TextBlock { Text = glyph + " ", FontSize = 11, Foreground = Muted() });
+        panel.Children.Add(new TextBlock { Text = value, FontSize = 11 });
+        Grid.SetColumn(panel, column);
+        return panel;
+    }
+
+    private static Border AmsChip(AmsSlot slot)
+    {
+        var color = ParseHex(slot.ColorHex);
+        var border = new Border
+        {
+            Background = new SolidColorBrush(color),
+            CornerRadius = new CornerRadius(4),
+            Width = 26,
+            Height = 20,
+            Margin = new Thickness(2),
+            BorderThickness = new Thickness(slot.IsActive ? 2 : 0),
+            BorderBrush = new SolidColorBrush(Colors.White),
+            ToolTip = $"{slot.Label} • {slot.Material}" + (slot.RemainingPercent is { } r ? $" • {r}%" : "")
+        };
+        border.Child = new TextBlock
+        {
+            Text = slot.Label,
+            FontSize = 9,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = new SolidColorBrush(Luminance(color) > 0.6 ? Colors.Black : Colors.White)
+        };
+        return border;
+    }
+
+    private Button SmallButton(string text, Action onClick)
+    {
+        var button = new Button { Content = text, FontSize = 11, Margin = new Thickness(0, 0, 6, 0), Padding = new Thickness(8, 3, 8, 3) };
+        button.Click += (_, _) => onClick();
+        return button;
+    }
+
+    private static string FormatEta(int? minutes)
+    {
+        if (minutes is not { } m || m <= 0) return "—";
+        return m >= 60 ? $"{m / 60}h {m % 60}m" : $"{m}m";
+    }
+
+    private static string FormatTemp(double? current, double? target)
+    {
+        if (current is not { } c) return "—";
+        string value = c.ToString("0", CultureInfo.InvariantCulture) + "°";
+        if (target is { } t && t > 0) value += "/" + t.ToString("0", CultureInfo.InvariantCulture) + "°";
+        return value;
+    }
+
+    private static SolidColorBrush Muted() => new(Color.FromRgb(0x9A, 0x9A, 0x9E));
+    private static SolidColorBrush Accent(PrinterState state) => new(ParseHex(state.AccentHex() + "FF"));
+
+    private static Color ParseHex(string hex)
+    {
+        hex = hex.TrimStart('#');
+        try
+        {
+            if (hex.Length >= 8)
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                byte a = Convert.ToByte(hex.Substring(6, 2), 16);
+                return Color.FromArgb(a, r, g, b);
+            }
+            if (hex.Length >= 6)
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return Color.FromRgb(r, g, b);
+            }
+        }
+        catch { /* fall through */ }
+        return Color.FromRgb(0x8E, 0x8E, 0x93);
+    }
+
+    private static double Luminance(Color c) => (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255.0;
+}
