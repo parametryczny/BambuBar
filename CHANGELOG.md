@@ -4,6 +4,12 @@ Wszystkie istotne zmiany w aplikacji BambuBar są opisane w tym pliku.
 
 ## 0.1.18 — 2026-07-30
 
+- dodano pierwszą wersję beta BambuBar dla 64-bitowego Windows 10 i 11, działającą jako aplikacja w zasobniku systemowym
+- wersja Windows jest publikowana jako samodzielny `BambuBar.exe` w archiwum ZIP i nie wymaga osobnej instalacji środowiska .NET
+- przeniesiono na Windows najważniejsze funkcje wersji macOS: wykrywanie drukarek, lokalne połączenie MQTT przez TLS, statusy druku, AMS/HMS, powiadomienia oraz import z Bambu Studio
+- kody dostępu w wersji Windows są szyfrowane dla bieżącego użytkownika za pomocą Windows DPAPI
+- poprawiono import konfiguracji Bambu Studio na Windows — obsługiwane są formaty JSON z końcową sumą kontrolną i starszy INI, również gdy Bambu Studio pozostaje otwarte
+- wersja Windows pozostaje betą i nie jest jeszcze podpisana certyfikatem; wymaga dalszych testów interfejsu, zasobnika, zapory oraz wykrywania drukarek na fizycznych komputerach z Windows
 - dodano usuwanie drukarki z menu „⋯" na karcie (z potwierdzeniem)
 - skanowanie sieci kończy się w kilka sekund zamiast ~30 s (nie poddaje się już po 8 s)
 - import z Bambu Studio działa na czystej instalacji — czyta adres IP z konfiguracji i tworzy drukarki bez potrzeby skanu, a przycisk importu nie czeka już na skanowanie
