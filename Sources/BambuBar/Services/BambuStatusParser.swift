@@ -31,9 +31,12 @@ enum BambuStatusParser {
         }
         if let ams = report["ams"] as? [String: Any] {
             let amsData = parseAMS(ams)
-            result.amsSlots = amsData.slots
-            result.amsHumidity = amsData.humidity
-            result.amsTemperature = amsData.temperature
+            // Partial status updates during a print often carry only `tray_now` without the
+            // tray list, which would otherwise blank the AMS display until the next full
+            // report. Keep the last known slots when the update has none.
+            if !amsData.slots.isEmpty { result.amsSlots = amsData.slots }
+            if let humidity = amsData.humidity { result.amsHumidity = humidity }
+            if let temperature = amsData.temperature { result.amsTemperature = temperature }
         }
         if result.errorCode != 0 { result.state = .error }
         result.lastUpdated = Date()
