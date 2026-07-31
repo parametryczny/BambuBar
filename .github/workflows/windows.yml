@@ -32,6 +32,42 @@ jobs:
         run: .\BambuBar.Windows\bin\Release\net8.0-windows\BambuBar.exe --self-test
       - name: Publish self-contained single-file exe
         run: dotnet publish BambuBar.Windows/BambuBar.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o publish
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+          }
+          if (-not (Test-Path $iscc)) {
+            throw "Inno Setup compiler was not found."
+          }
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "installer\BambuBar.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test silent install, autostart and uninstall
+        shell: pwsh
+        run: |
+          $setup = Resolve-Path "installer-output\BambuBar-Setup-Windows-x64.exe"
+          $install = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer failed with exit code $($install.ExitCode)." }
+
+          $installedExe = Join-Path $env:LOCALAPPDATA "Programs\BambuBar\BambuBar.exe"
+          if (-not (Test-Path $installedExe)) { throw "Installed application was not found." }
+
+          $runValue = (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "BambuBar" -ErrorAction Stop).BambuBar
+          if ($runValue -notlike "*BambuBar.exe*") { throw "Autostart registry value is invalid." }
+
+          $uninstaller = Join-Path $env:LOCALAPPDATA "Programs\BambuBar\unins000.exe"
+          $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "Uninstaller failed with exit code $($uninstall.ExitCode)." }
+          if (Test-Path $installedExe) { throw "Application remained after uninstall." }
+
+          $runKey = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "BambuBar" -ErrorAction SilentlyContinue
+          if ($null -ne $runKey) { throw "Autostart value remained after uninstall." }
       - name: Package ZIP
         shell: pwsh
         run: Compress-Archive -Path publish/BambuBar.exe -DestinationPath publish/BambuBar-Windows-x64.zip -Force
@@ -40,4 +76,10 @@ jobs:
         with:
           name: BambuBar-Windows-x64
           path: windows/publish/BambuBar-Windows-x64.zip
+          if-no-files-found: error
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: BambuBar-Windows-Installer-x64
+          path: windows/installer-output/BambuBar-Setup-Windows-x64.exe
           if-no-files-found: error

@@ -19,6 +19,13 @@ pinning, AMS/HMS details and notifications — no Bambu Cloud account required.
 - The Mac/PC and the printers on the same local network, LAN access enabled on each printer
 - The serial number and Access Code/PIN of each printer
 
+### Installation
+
+Download `BambuBar-Setup-Windows-x64.exe` from the latest GitHub Release. The per-user
+installer does not require administrator rights, starts BambuBar after installation and
+enables launch at Windows sign-in. It also adds a Start menu shortcut and a standard
+uninstaller. The portable ZIP remains available as an alternative.
+
 ### Build and run
 
 ```bat
@@ -72,6 +79,13 @@ explicitly choose **Import from Bambu Studio** (reads `%AppData%\BambuStudio\Bam
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) do zbudowania (użytkownik końcowy potrzebuje tylko **.NET 8 Desktop Runtime** albo wersji self-contained)
 - Komputer i drukarki w tej samej sieci lokalnej, włączony dostęp LAN na każdej drukarce
 - Numer seryjny i kod dostępu (Access Code / PIN) każdej drukarki
+
+### Instalacja
+
+Pobierz `BambuBar-Setup-Windows-x64.exe` z najnowszego wydania GitHub. Instalator działa
+dla bieżącego użytkownika bez uprawnień administratora, uruchamia BambuBar po instalacji i
+włącza start aplikacji przy logowaniu do Windows. Dodaje również skrót w menu Start oraz
+standardowy deinstalator. Wariant przenośny ZIP pozostaje dostępny jako alternatywa.
 
 ### Budowanie i uruchamianie
 

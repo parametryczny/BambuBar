@@ -15,9 +15,10 @@
 
 - [macOS Local](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-0.1.18-macOS-Local.zip)
 - [macOS Keychain](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-0.1.18-macOS-Keychain.zip)
-- [Windows x64 — self-contained beta](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-Windows-x64.zip)
+- [Windows x64 installer — beta, recommended](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-Setup-Windows-x64.exe)
+- [Windows x64 portable ZIP — beta](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-Windows-x64.zip)
 
-The Windows build does not require a separate .NET installation. / Wersja Windows nie wymaga osobnej instalacji .NET.
+The Windows installer starts BambuBar after installation and enables launch at sign-in. Neither Windows download requires a separate .NET installation. / Instalator Windows uruchamia BambuBar po instalacji i włącza start przy logowaniu. Żaden wariant Windows nie wymaga osobnej instalacji .NET.
 
 ### Windows 11 beta / Podgląd wersji beta
 
