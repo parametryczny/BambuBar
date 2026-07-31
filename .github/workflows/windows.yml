@@ -19,9 +19,9 @@ jobs:
         working-directory: windows
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
       - name: Restore
@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path publish/BambuBar.exe -DestinationPath publish/BambuBar-Windows-x64.zip -Force
       - name: Upload packaged application
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BambuBar-Windows-x64
           path: windows/publish/BambuBar-Windows-x64.zip
