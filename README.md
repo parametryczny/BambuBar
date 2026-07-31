@@ -19,6 +19,12 @@
 
 The Windows build does not require a separate .NET installation. / Wersja Windows nie wymaga osobnej instalacji .NET.
 
+### Windows 11 beta / Podgląd wersji beta
+
+<p align="center">
+  <img src="docs/renders/bambubar-windows-11-beta.jpg" width="72%" alt="BambuBar Windows 11 beta dashboard and system tray menu">
+</p>
+
 ---
 
 ## English
