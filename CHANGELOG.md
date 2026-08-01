@@ -2,6 +2,16 @@
 
 Wszystkie istotne zmiany w aplikacji BambuBar są opisane w tym pliku.
 
+## 0.1.19 — 2026-08-01
+
+- powiadomienia macOS są teraz natywne: mają własną ikonę BambuBar, a kliknięcie otwiera pulpit aplikacji zamiast Edytora skryptów
+- w ustawieniach macOS można wybrać, które powiadomienia mają się pojawiać (druk zakończony, błąd drukarki, druk wstrzymany, niski poziom filamentu, wysoka wilgotność AMS)
+- dodano okno ustawień powiadomień w wersji Windows
+- okno pulpitu dopasowuje wysokość do liczby drukarek — przy 1–3 drukarkach nie ma już pustej przestrzeni, a przy dużej flocie pojawia się przewijanie
+- dodano przycisk „Sprawdź aktualizacje" w ustawieniach macOS, który pobiera i instaluje nowszą wersję oraz uruchamia aplikację ponownie
+- AMS i kolory pozostają widoczne przez cały czas druku (wcześniej znikały przy cząstkowych aktualizacjach statusu, m.in. na A1 mini z AMS lite)
+- temperatura komory jest pokazywana wyłącznie dla drukarek z rzeczywistym czujnikiem (X1, X2, P2), a ukrywana tam, gdzie go nie ma (A1, A1 mini, P1) — wykrywane bezpośrednio z telemetrii drukarki
+
 ## 0.1.18 — 2026-07-30
 
 - dodano pierwszą wersję beta BambuBar dla 64-bitowego Windows 10 i 11, działającą jako aplikacja w zasobniku systemowym
