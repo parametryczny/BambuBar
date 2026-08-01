@@ -13,7 +13,7 @@ final class PrinterStore: ObservableObject {
     private let persistence = PrinterPersistence()
     private let discovery = SSDPDiscovery()
     private let subnetDiscovery = BambuSubnetDiscovery()
-    private var clients: [String: MQTTClient] = [:]
+    private var clients: [String: PrinterConnection] = [:]
     private var reconnectTasks: [String: Task<Void, Never>] = [:]
     private var permissionRetryTask: Task<Void, Never>?
     private var localNetworkWasDenied = false
@@ -83,6 +83,33 @@ final class PrinterStore: ObservableObject {
         }
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         try upsert(SavedPrinter(serial: cleanSerial, name: cleanName.isEmpty ? "Bambu \(cleanSerial.suffix(4))" : cleanName, host: cleanHost), accessCode: cleanCode)
+    }
+
+    /// Adds a Klipper printer (Moonraker). No access code — only host, optional port and API key.
+    func addKlipper(name: String, host: String, port: Int?, apiKey: String?) throws {
+        let cleanHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanHost.isEmpty else {
+            throw ValidationError("Podaj adres IP drukarki Klipper.")
+        }
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let identifier = "klipper-\(cleanHost)"
+        let printer = SavedPrinter(
+            serial: identifier,
+            name: cleanName.isEmpty ? "Klipper \(cleanHost)" : cleanName,
+            model: "Klipper",
+            host: cleanHost,
+            kind: .klipper,
+            port: port,
+            apiKey: (apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+        )
+        if let index = printers.firstIndex(where: { $0.serial == identifier }) {
+            printers[index] = printer
+        } else {
+            printers.append(printer)
+        }
+        telemetry[identifier] = PrinterTelemetry()
+        persistence.save(printers)
+        reconnect(printer)
     }
 
     @discardableResult
@@ -168,20 +195,28 @@ final class PrinterStore: ObservableObject {
         clients.removeValue(forKey: printer.serial)?.stop()
         telemetry[printer.serial] = PrinterTelemetry()
         connectionMessages[printer.serial] = "Łączenie…"
-        let code: String
-        if let sessionCode = sessionCodes[printer.serial] {
-            code = sessionCode
-        } else {
-            do {
-                code = try AccessCodeStore.readAccessCode(for: printer.serial)
-                sessionCodes[printer.serial] = code
-            } catch {
-                connectionMessages[printer.serial] = error.localizedDescription
-                return
-            }
-        }
-        let client = MQTTClient(printer: printer, accessCode: code) { [weak self] event in
+
+        let handler: @Sendable (MQTTClient.Event) -> Void = { [weak self] event in
             Task { @MainActor [weak self] in self?.handle(event, serial: printer.serial) }
+        }
+        let client: PrinterConnection
+        switch printer.kind {
+        case .klipper:
+            client = MoonrakerClient(printer: printer, onEvent: handler)
+        case .bambu:
+            let code: String
+            if let sessionCode = sessionCodes[printer.serial] {
+                code = sessionCode
+            } else {
+                do {
+                    code = try AccessCodeStore.readAccessCode(for: printer.serial)
+                    sessionCodes[printer.serial] = code
+                } catch {
+                    connectionMessages[printer.serial] = error.localizedDescription
+                    return
+                }
+            }
+            client = MQTTClient(printer: printer, accessCode: code, onEvent: handler)
         }
         clients[printer.serial] = client
         client.start()

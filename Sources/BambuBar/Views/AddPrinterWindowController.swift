@@ -23,13 +23,20 @@ final class AddPrinterWindowController: NSWindowController {
     private let hostLabel = NSTextField(labelWithString: "")
     private let serialLabel = NSTextField(labelWithString: "")
     private let codeLabel = NSTextField(labelWithString: "")
+    private let typeControl = NSSegmentedControl(labels: ["Bambu", "Klipper"], trackingMode: .selectOne, target: nil, action: nil)
+    private let portField = NSTextField()
+    private let apiKeyField = NSTextField()
+    private let portLabel = NSTextField(labelWithString: "")
+    private let apiKeyLabel = NSTextField(labelWithString: "")
+    private var form = NSGridView()
     private var subscription: AnyCancellable?
     private var popupPrinters: [DiscoveredPrinter] = []
     private var editingSerial: String?
+    private var editingKind: PrinterKind = .bambu
 
     init(store: PrinterStore) {
         self.store = store
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 385), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 430), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = AppSettings.shared.text("Dodaj drukarkę Bambu Lab", "Add Bambu Lab printer")
         window.isReleasedWhenClosed = false
         super.init(window: window)
@@ -64,13 +71,19 @@ final class AddPrinterWindowController: NSWindowController {
         codeRow.spacing = 8
         codeField.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        let form = NSGridView(views: [
+        typeControl.target = self
+        typeControl.action = #selector(kindChanged)
+        typeControl.segmentStyle = .rounded
+
+        form = NSGridView(views: [
             [detectedLabel, discoveryRow],
             [bambuStudioLabel, importButton],
             [nameLabel, nameField],
             [hostLabel, hostField],
             [serialLabel, serialField],
-            [codeLabel, codeRow]
+            [codeLabel, codeRow],
+            [portLabel, portField],
+            [apiKeyLabel, apiKeyField]
         ])
         form.rowSpacing = 10
         form.columnSpacing = 12
@@ -89,7 +102,7 @@ final class AddPrinterWindowController: NSWindowController {
         buttons.orientation = .horizontal
         buttons.spacing = 8
 
-        let stack = NSStackView(views: [titleLabel, infoLabel, form, statusLabel, buttons])
+        let stack = NSStackView(views: [titleLabel, typeControl, infoLabel, form, statusLabel, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 14
@@ -106,6 +119,37 @@ final class AddPrinterWindowController: NSWindowController {
             buttons.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
         localize()
+        applyKind()
+    }
+
+    private var isKlipper: Bool { typeControl.selectedSegment == 1 }
+
+    /// Shows the fields for the selected printer type; Klipper needs only host/port/API key.
+    private func applyKind() {
+        let klipper = isKlipper
+        // rows: 0 detected, 1 Bambu Studio, 2 name, 3 host, 4 serial, 5 code, 6 port, 7 API key
+        form.row(at: 0).isHidden = klipper
+        form.row(at: 1).isHidden = klipper
+        form.row(at: 4).isHidden = klipper
+        form.row(at: 5).isHidden = klipper
+        form.row(at: 6).isHidden = !klipper
+        form.row(at: 7).isHidden = !klipper
+        let settings = AppSettings.shared
+        infoLabel.stringValue = klipper
+            ? settings.text(
+                "Podaj adres IP hosta Klipper (Moonraker, port 7125). Kod dostępu nie jest wymagany.",
+                "Enter the Klipper host IP (Moonraker, port 7125). No access code is needed.")
+            : settings.text(
+                "Wybierz urządzenie znalezione w Wi‑Fi albo wpisz dane ręcznie. ",
+                "Select a device found on Wi-Fi or enter its details manually. ")
+                + (AccessCodeStore.usesKeychain
+                    ? settings.text("Kod zostanie zapisany w pęku kluczy macOS.", "The code is stored in macOS Keychain.")
+                    : settings.text("Kod zostanie zapisany w lokalnych ustawieniach tego Maca.", "The code is stored in this Mac's local preferences."))
+    }
+
+    @objc private func kindChanged() {
+        statusLabel.stringValue = ""
+        applyKind()
     }
 
     /// Applies every language-dependent string. Called on each open so the form follows the
@@ -140,6 +184,10 @@ final class AddPrinterWindowController: NSWindowController {
         hostField.placeholderString = settings.text("np. 192.168.1.50", "e.g. 192.168.1.50")
         serialField.placeholderString = settings.text("Numer seryjny drukarki", "Printer serial number")
         codeField.placeholderString = "PIN / Access Code"
+        portLabel.stringValue = settings.text("Port:", "Port:")
+        apiKeyLabel.stringValue = settings.text("Klucz API:", "API key:")
+        portField.placeholderString = "7125"
+        apiKeyField.placeholderString = settings.text("opcjonalny", "optional")
     }
 
     private func refreshDiscovery() {
@@ -223,7 +271,16 @@ final class AddPrinterWindowController: NSWindowController {
     @objc private func savePrinter() {
         statusLabel.stringValue = ""
         do {
-            if let editingSerial {
+            if isKlipper {
+                let port = Int(portField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+                let host = hostField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                try store.addKlipper(name: nameField.stringValue, host: host, port: port, apiKey: apiKeyField.stringValue)
+                // Editing that changed the host produces a new identifier; drop the old entry.
+                if let editingSerial, editingSerial != "klipper-\(host)",
+                   let old = store.printers.first(where: { $0.serial == editingSerial }) {
+                    store.remove(old)
+                }
+            } else if let editingSerial {
                 try store.update(
                     originalSerial: editingSerial,
                     name: nameField.stringValue,
@@ -247,8 +304,12 @@ final class AddPrinterWindowController: NSWindowController {
     func prepareForAdding() {
         let settings = AppSettings.shared
         editingSerial = nil
+        typeControl.isHidden = false
+        typeControl.isEnabled = true
+        typeControl.selectedSegment = 0
         localize()
-        window?.title = settings.text("Dodaj drukarkę Bambu Lab", "Add Bambu Lab printer")
+        applyKind()
+        window?.title = settings.text("Dodaj drukarkę", "Add printer")
         saveButton.title = settings.text("Dodaj", "Add")
         codeField.placeholderString = "PIN / Access Code"
         printerPopup.isEnabled = true
@@ -264,21 +325,30 @@ final class AddPrinterWindowController: NSWindowController {
     func prepareForEditing(_ printer: SavedPrinter) {
         let settings = AppSettings.shared
         editingSerial = printer.serial
+        editingKind = printer.kind
+        typeControl.selectedSegment = printer.kind == .klipper ? 1 : 0
+        typeControl.isHidden = true          // kind is fixed when editing
         localize()
+        applyKind()
         window?.title = settings.text("Edytuj drukarkę \(printer.name)", "Edit printer \(printer.name)")
         saveButton.title = settings.text("Zapisz", "Save")
         nameField.stringValue = printer.name
         hostField.stringValue = printer.host
-        serialField.stringValue = printer.serial
-        codeField.stringValue = ""
-        codeField.placeholderString = settings.text("Pozostaw puste, aby zachować obecny kod", "Leave blank to keep the current code")
         statusLabel.stringValue = ""
         statusLabel.textColor = .systemRed
-        printerPopup.removeAllItems()
-        printerPopup.addItem(withTitle: settings.text("Edycja zapisanej drukarki", "Editing saved printer"))
-        printerPopup.isEnabled = false
-        scanButton.isEnabled = false
-        importButton.isEnabled = false
+        if printer.kind == .klipper {
+            portField.stringValue = printer.port.map(String.init) ?? ""
+            apiKeyField.stringValue = printer.apiKey ?? ""
+        } else {
+            serialField.stringValue = printer.serial
+            codeField.stringValue = ""
+            codeField.placeholderString = settings.text("Pozostaw puste, aby zachować obecny kod", "Leave blank to keep the current code")
+            printerPopup.removeAllItems()
+            printerPopup.addItem(withTitle: settings.text("Edycja zapisanej drukarki", "Editing saved printer"))
+            printerPopup.isEnabled = false
+            scanButton.isEnabled = false
+            importButton.isEnabled = false
+        }
     }
 
     private func clear() {
@@ -286,6 +356,8 @@ final class AddPrinterWindowController: NSWindowController {
         hostField.stringValue = ""
         serialField.stringValue = ""
         codeField.stringValue = ""
+        portField.stringValue = ""
+        apiKeyField.stringValue = ""
         statusLabel.stringValue = ""
     }
 }

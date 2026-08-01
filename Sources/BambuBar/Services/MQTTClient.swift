@@ -3,7 +3,7 @@ import Network
 import OSLog
 import Security
 
-final class MQTTClient: @unchecked Sendable {
+final class MQTTClient: PrinterConnection, @unchecked Sendable {
     private static let logger = Logger(subsystem: "pl.bambubar.app", category: "MQTT")
     enum Event: Sendable {
         case connected

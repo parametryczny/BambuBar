@@ -62,18 +62,46 @@ struct AMSSlot: Equatable, Identifiable, Sendable {
     let isExternal: Bool
 }
 
+enum PrinterKind: String, Codable, Sendable {
+    case bambu
+    case klipper
+}
+
 struct SavedPrinter: Codable, Identifiable, Hashable, Sendable {
     var id: String { serial }
     let serial: String
     var name: String
     var model: String
     var host: String
+    var kind: PrinterKind
+    /// Moonraker port for Klipper printers (default 7125). Unused for Bambu.
+    var port: Int?
+    /// Optional Moonraker API key for Klipper printers.
+    var apiKey: String?
 
-    init(serial: String, name: String, model: String = "Bambu Lab", host: String) {
+    init(serial: String, name: String, model: String = "Bambu Lab", host: String,
+         kind: PrinterKind = .bambu, port: Int? = nil, apiKey: String? = nil) {
         self.serial = serial
         self.name = name
         self.model = model
         self.host = host
+        self.kind = kind
+        self.port = port
+        self.apiKey = apiKey
+    }
+
+    enum CodingKeys: String, CodingKey { case serial, name, model, host, kind, port, apiKey }
+
+    // Custom decoding so printers saved before the Klipper fields existed still load as Bambu.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        serial = try container.decode(String.self, forKey: .serial)
+        name = try container.decode(String.self, forKey: .name)
+        model = (try? container.decode(String.self, forKey: .model)) ?? "Bambu Lab"
+        host = try container.decode(String.self, forKey: .host)
+        kind = (try? container.decode(PrinterKind.self, forKey: .kind)) ?? .bambu
+        port = try? container.decodeIfPresent(Int.self, forKey: .port)
+        apiKey = try? container.decodeIfPresent(String.self, forKey: .apiKey)
     }
 }
 
