@@ -19,7 +19,7 @@ public sealed class MqttEvent
 /// One MQTT-over-TLS connection to a printer, ported from the macOS MQTTClient.
 /// Raises Connected / Telemetry / Disconnected events; reconnection is driven by PrinterStore.
 /// </summary>
-public sealed class MqttClient
+public sealed class MqttClient : IPrinterConnection
 {
     private readonly SavedPrinter _printer;
     private readonly string _accessCode;

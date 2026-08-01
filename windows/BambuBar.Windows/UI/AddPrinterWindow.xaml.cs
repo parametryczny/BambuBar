@@ -20,18 +20,28 @@ public partial class AddPrinterWindow : Window
 
         if (editing is not null)
         {
-            DiscoverySection.Visibility = Visibility.Collapsed;
             NameBox.Text = editing.Name;
             HostBox.Text = editing.Host;
             SerialBox.Text = editing.Serial;
             CodeBox.Text = "";
+            // The printer kind cannot change once added; lock the selector to the saved type.
+            TypeSection.Visibility = Visibility.Collapsed;
+            if (editing.Kind == PrinterKind.Klipper)
+            {
+                KlipperRadio.IsChecked = true;
+                PortBox.Text = editing.Port?.ToString() ?? "";
+                ApiKeyBox.Text = editing.ApiKey ?? "";
+            }
         }
 
+        BambuRadio.Checked += (_, _) => ApplyKind();
+        KlipperRadio.Checked += (_, _) => ApplyKind();
         ScanButton.Click += (_, _) => _store.Scan();
         ImportButton.Click += (_, _) => ImportFromStudio();
         SaveButton.Click += (_, _) => Save();
         CancelButton.Click += (_, _) => Close();
         DetectedList.SelectionChanged += OnDetectedSelected;
+        ApplyKind();
 
         _store.Updated += OnStoreUpdated;
         Closed += (_, _) => _store.Updated -= OnStoreUpdated;
@@ -48,8 +58,29 @@ public partial class AddPrinterWindow : Window
         HostLabel.Text = AppSettings.Text("Adres IP", "IP address");
         SerialLabel.Text = AppSettings.Text("Numer seryjny", "Serial number");
         CodeLabel.Text = AppSettings.Text("Kod dostępu (Access Code / PIN)", "Access Code / PIN");
+        BambuRadio.Content = AppSettings.Text("Bambu Lab", "Bambu Lab");
+        KlipperRadio.Content = AppSettings.Text("Klipper (Moonraker)", "Klipper (Moonraker)");
+        PortLabel.Text = AppSettings.Text("Port Moonraker (domyślnie 7125)", "Moonraker port (default 7125)");
+        ApiKeyLabel.Text = AppSettings.Text("Klucz API (opcjonalnie)", "API key (optional)");
         CancelButton.Content = AppSettings.Text("Anuluj", "Cancel");
         SaveButton.Content = _editing is null ? AppSettings.Text("Dodaj", "Add") : AppSettings.Text("Zapisz", "Save");
+    }
+
+    private bool IsKlipper => KlipperRadio.IsChecked == true;
+
+    /// <summary>Shows only the fields relevant to the selected printer kind. Klipper needs a host,
+    /// an optional port and API key; Bambu needs discovery, serial and access code.</summary>
+    private void ApplyKind()
+    {
+        bool klipper = IsKlipper;
+        DiscoverySection.Visibility = (klipper || _editing is not null) ? Visibility.Collapsed : Visibility.Visible;
+        SerialLabel.Visibility = SerialBox.Visibility = klipper ? Visibility.Collapsed : Visibility.Visible;
+        CodeLabel.Visibility = CodeBox.Visibility = klipper ? Visibility.Collapsed : Visibility.Visible;
+        PortLabel.Visibility = PortBox.Visibility = klipper ? Visibility.Visible : Visibility.Collapsed;
+        ApiKeyLabel.Visibility = ApiKeyBox.Visibility = klipper ? Visibility.Visible : Visibility.Collapsed;
+        HostLabel.Text = klipper
+            ? AppSettings.Text("Adres IP / nazwa hosta", "IP address / host name")
+            : AppSettings.Text("Adres IP", "IP address");
     }
 
     private void OnStoreUpdated(object? sender, EventArgs e) => Dispatcher.Invoke(RefreshDetected);
@@ -98,7 +129,22 @@ public partial class AddPrinterWindow : Window
     {
         try
         {
-            if (_editing is not null)
+            if (IsKlipper)
+            {
+                int? port = null;
+                var portText = PortBox.Text.Trim();
+                if (portText.Length > 0)
+                {
+                    if (!int.TryParse(portText, out var parsed) || parsed <= 0 || parsed > 65535)
+                        throw new ArgumentException(AppSettings.Text("Nieprawidłowy port.", "Invalid port."));
+                    port = parsed;
+                }
+                // Editing may change the host, which changes the derived serial; drop the old entry first.
+                if (_editing is not null && _editing.Host != HostBox.Text.Trim())
+                    _store.Remove(_editing);
+                _store.AddKlipper(NameBox.Text, HostBox.Text, port, ApiKeyBox.Text);
+            }
+            else if (_editing is not null)
                 _store.Update(_editing.Serial, NameBox.Text, SerialBox.Text, HostBox.Text, CodeBox.Text);
             else
                 _store.AddManually(NameBox.Text, SerialBox.Text, HostBox.Text, CodeBox.Text);

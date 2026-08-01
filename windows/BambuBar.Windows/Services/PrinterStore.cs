@@ -22,7 +22,7 @@ public sealed class PrinterStore
 
     private readonly SsdpDiscovery _discovery = new();
     private readonly SubnetDiscovery _subnetDiscovery = new();
-    private readonly Dictionary<string, MqttClient> _clients = new();
+    private readonly Dictionary<string, IPrinterConnection> _clients = new();
     private readonly Dictionary<string, CancellationTokenSource> _reconnectTasks = new();
     private readonly Dictionary<string, string> _sessionCodes = new();
     private readonly Dictionary<string, string> _dismissedJobs = new();
@@ -121,6 +121,32 @@ public sealed class PrinterStore
             Name = cleanName.Length == 0 ? $"Bambu {suffix}" : cleanName,
             Host = cleanHost
         }, cleanCode);
+        RaiseUpdated();
+    }
+
+    public void AddKlipper(string name, string host, int? port, string? apiKey)
+    {
+        var cleanHost = host.Trim();
+        if (cleanHost.Length == 0)
+            throw new ArgumentException(AppSettings.Text("Adres IP / nazwa hosta jest wymagana.", "IP address / host name is required."));
+        var cleanName = name.Trim();
+        var cleanKey = apiKey?.Trim();
+        var printer = new SavedPrinter
+        {
+            Serial = $"klipper-{cleanHost}",
+            Name = cleanName.Length == 0 ? $"Klipper {cleanHost}" : cleanName,
+            Model = "Klipper",
+            Host = cleanHost,
+            Kind = PrinterKind.Klipper,
+            Port = port,
+            ApiKey = string.IsNullOrEmpty(cleanKey) ? null : cleanKey
+        };
+
+        var index = Printers.FindIndex(p => p.Serial == printer.Serial);
+        if (index >= 0) Printers[index] = printer; else Printers.Add(printer);
+        Telemetry[printer.Serial] = new PrinterTelemetry();
+        SavedPrinterStore.Save(Printers);
+        Reconnect(printer);
         RaiseUpdated();
     }
 
@@ -225,6 +251,15 @@ public sealed class PrinterStore
         if (_clients.Remove(printer.Serial, out var existing)) existing.Stop();
         Telemetry[printer.Serial] = new PrinterTelemetry();
         ConnectionMessages[printer.Serial] = AppSettings.Text("Łączenie…", "Connecting…");
+
+        if (printer.Kind == PrinterKind.Klipper)
+        {
+            var moonraker = new MoonrakerClient(printer, evt => _post(() => Handle(evt, printer.Serial)));
+            _clients[printer.Serial] = moonraker;
+            moonraker.Start();
+            RaiseUpdated();
+            return;
+        }
 
         string code;
         if (_sessionCodes.TryGetValue(printer.Serial, out var sessionCode))

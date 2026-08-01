@@ -99,12 +99,25 @@ public sealed class AmsSlot
     public AmsSlot Clone() => (AmsSlot)MemberwiseClone();
 }
 
+public enum PrinterKind { Bambu, Klipper }
+
 public sealed class SavedPrinter
 {
     [JsonPropertyName("serial")] public string Serial { get; set; } = "";
     [JsonPropertyName("name")] public string Name { get; set; } = "";
     [JsonPropertyName("model")] public string Model { get; set; } = "Bambu Lab";
     [JsonPropertyName("host")] public string Host { get; set; } = "";
+    // Missing in printers saved before Klipper support → defaults to Bambu.
+    [JsonPropertyName("kind")] public PrinterKind Kind { get; set; } = PrinterKind.Bambu;
+    [JsonPropertyName("port")] public int? Port { get; set; }
+    [JsonPropertyName("apiKey")] public string? ApiKey { get; set; }
+}
+
+/// <summary>A live connection to one printer (MqttClient for Bambu, MoonrakerClient for Klipper).</summary>
+public interface IPrinterConnection
+{
+    void Start();
+    void Stop();
 }
 
 public sealed class DiscoveredPrinter
