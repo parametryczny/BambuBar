@@ -10,7 +10,7 @@
     <AssemblyName>BambuBar</AssemblyName>
     <RootNamespace>BambuBar</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.1.18</Version>
+    <Version>0.1.19</Version>
     <Product>BambuBar</Product>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>

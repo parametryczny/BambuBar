@@ -1,5 +1,5 @@
 #define MyAppName "BambuBar"
-#define MyAppVersion "0.1.18"
+#define MyAppVersion "0.1.19"
 #define MyAppPublisher "Kamil Grzegorczyk"
 #define MyAppURL "https://github.com/parametryczny/BambuBar"
 #define MyAppExeName "BambuBar.exe"
@@ -28,7 +28,7 @@ CloseApplications=yes
 RestartApplications=no
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
-VersionInfoVersion=0.1.18.0
+VersionInfoVersion=0.1.19.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=BambuBar Windows Beta Installer
 VersionInfoProductName={#MyAppName}

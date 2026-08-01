@@ -188,7 +188,7 @@ final class SettingsWindowController: NSWindowController {
         notifyLowFilamentCheck.state = settings.notifyLowFilament ? .on : .off
         notifyHumidityCheck.state = settings.notifyHumidity ? .on : .off
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-            ?? "0.1.17"
+            ?? "0.1.19"
         versionLabel.stringValue = settings.text("Wersja \(version)", "Version \(version)") + " • \(AccessCodeStore.modeName)"
         supportButton.title = settings.text("Wesprzyj projekt", "Support the project")
         closeButton.title = settings.text("Gotowe", "Done")

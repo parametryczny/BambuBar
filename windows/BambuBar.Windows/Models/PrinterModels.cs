@@ -114,4 +114,3 @@ public sealed class DiscoveredPrinter
     public string Model { get; set; } = "Bambu Lab";
     public string Host { get; set; } = "";
 }
-

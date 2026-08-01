@@ -13,10 +13,10 @@
 
 ## Downloads / Pobieranie
 
-- [macOS Local](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-0.1.18-macOS-Local.zip)
-- [macOS Keychain](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-0.1.18-macOS-Keychain.zip)
-- [Windows x64 installer — beta, recommended](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-Setup-Windows-x64.exe)
-- [Windows x64 portable ZIP — beta](https://github.com/parametryczny/BambuBar/releases/download/v0.1.18/BambuBar-Windows-x64.zip)
+- [macOS Local](https://github.com/parametryczny/BambuBar/releases/download/v0.1.19/BambuBar-0.1.19-macOS-Local.zip)
+- [macOS Keychain](https://github.com/parametryczny/BambuBar/releases/download/v0.1.19/BambuBar-0.1.19-macOS-Keychain.zip)
+- [Windows x64 installer — beta, recommended](https://github.com/parametryczny/BambuBar/releases/download/v0.1.19/BambuBar-Setup-Windows-x64.exe)
+- [Windows x64 portable ZIP — beta](https://github.com/parametryczny/BambuBar/releases/download/v0.1.19/BambuBar-Windows-x64.zip)
 
 The Windows installer starts BambuBar after installation and enables launch at sign-in. Neither Windows download requires a separate .NET installation. / Instalator Windows uruchamia BambuBar po instalacji i włącza start przy logowaniu. Żaden wariant Windows nie wymaga osobnej instalacji .NET.
 
@@ -34,7 +34,7 @@ A compact, MIT-licensed macOS menu bar and Windows system-tray monitor for Bambu
 
 ### Latest changes
 
-Version 0.1.18 adds the first self-contained Windows x64 beta alongside the macOS Local and Keychain builds.
+Version 0.1.19 adds configurable notifications, improved telemetry handling and automatic update checks.
 
 [Read the full changelog](CHANGELOG.md)
 
@@ -134,7 +134,7 @@ Kompaktowy monitor drukarek 3D Bambu Lab dla paska menu macOS i zasobnika system
 
 ### Najnowsze zmiany
 
-Wersja 0.1.18 dodaje pierwszą samodzielną betę Windows x64 obok wariantów macOS Local i Keychain.
+Wersja 0.1.19 dodaje konfigurowalne powiadomienia, ulepszoną obsługę telemetrii i automatyczne sprawdzanie aktualizacji.
 
 [Zobacz pełny changelog](CHANGELOG.md)
 
