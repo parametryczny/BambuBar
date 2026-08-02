@@ -20,12 +20,13 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    static func post(title: String, body: String, subtitle: String? = nil) {
+    static func post(title: String, body: String, subtitle: String? = nil, userInfo: [String: String] = [:]) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         if let subtitle, !subtitle.isEmpty { content.subtitle = subtitle }
         content.sound = .default
+        if !userInfo.isEmpty { content.userInfo = userInfo }
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
     }
@@ -43,13 +44,15 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
+        let isUpdate = (response.notification.request.content.userInfo["type"] as? String) == "update"
         await MainActor.run {
             NSApp.activate(ignoringOtherApps: true)
-            NotificationCenter.default.post(name: .bambuBarShowDashboard, object: nil)
+            NotificationCenter.default.post(name: isUpdate ? .bambuBarCheckForUpdates : .bambuBarShowDashboard, object: nil)
         }
     }
 }
 
 extension Notification.Name {
     static let bambuBarShowDashboard = Notification.Name("pl.bambubar.showDashboard")
+    static let bambuBarCheckForUpdates = Notification.Name("pl.bambubar.checkForUpdates")
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
@@ -27,10 +28,40 @@ public sealed class TrayIcon : IDisposable
             Text = "BambuBar"
         };
         _notifyIcon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ToggleDashboard(); };
+        _notifyIcon.BalloonTipClicked += (_, _) => OpenPendingUpdate();
         _notifyIcon.ContextMenuStrip = BuildMenu();
         _store.Updated += (_, _) => { RefreshTooltip(); UpdateProgressIcons(); };
         RefreshTooltip();
         UpdateProgressIcons();
+        _ = RunUpdateChecksAsync();
+    }
+
+    private string? _pendingUpdateUrl;
+
+    private async Task RunUpdateChecksAsync()
+    {
+        while (true)
+        {
+            var release = await UpdateChecker.CheckAsync();
+            if (release is not null)
+            {
+                UpdateChecker.MarkNotified(release.Version);
+                _pendingUpdateUrl = release.PageUrl;
+                ShowNotification(
+                    AppSettings.Text("Dostępna aktualizacja BambuBar", "BambuBar update available"),
+                    AppSettings.Text($"Wersja {release.Version} jest do pobrania. Kliknij, aby otworzyć stronę.",
+                                     $"Version {release.Version} is available. Click to open the page."),
+                    null);
+            }
+            await Task.Delay(TimeSpan.FromHours(6));
+        }
+    }
+
+    private void OpenPendingUpdate()
+    {
+        if (string.IsNullOrEmpty(_pendingUpdateUrl)) return;
+        try { Process.Start(new ProcessStartInfo(_pendingUpdateUrl) { UseShellExecute = true }); }
+        catch { /* browser unavailable */ }
     }
 
     private ContextMenuStrip BuildMenu()

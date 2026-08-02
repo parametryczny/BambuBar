@@ -13,6 +13,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     private var addWindow: AddPrinterWindowController?
     private var settingsWindow: SettingsWindowController?
     private var notificationObserver: Any?
+    private var updateNotificationObserver: Any?
 
     init(store: PrinterStore) {
         self.store = store
@@ -60,6 +61,11 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             forName: .bambuBarShowDashboard, object: nil, queue: .main
         ) { [weak self] _ in
             DispatchQueue.main.async { self?.showDashboard() }
+        }
+        updateNotificationObserver = NotificationCenter.default.addObserver(
+            forName: .bambuBarCheckForUpdates, object: nil, queue: .main
+        ) { _ in
+            DispatchQueue.main.async { UpdatePresenter.checkAndPresent(from: nil) }
         }
     }
 

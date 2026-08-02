@@ -110,5 +110,6 @@ final class BambuBarApp: NSObject, NSApplicationDelegate {
         }
         permissionPrompter = prompter
         prompter.start()
+        UpdateChecker.start()
     }
 }
