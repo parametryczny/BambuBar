@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using BambuBar.Models;
 using BambuBar.Services;
@@ -15,6 +17,9 @@ public partial class DashboardWindow : Window
     {
         InitializeComponent();
         _store = store;
+        // Rounded corners, an acrylic backdrop and a native shadow — the Windows 11 flyout look,
+        // closer to the macOS popover than a plain window. No-ops safely on older Windows.
+        SourceInitialized += (_, _) => ApplyModernChrome();
         ScanButton.Click += (_, _) => _store.Scan();
         AddButton.Click += (_, _) => OpenAddWindow();
         _store.Updated += OnStoreUpdated;
@@ -56,6 +61,23 @@ public partial class DashboardWindow : Window
         Top = area.Bottom - Height - 8;
         Show();
         Activate();
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    private void ApplyModernChrome()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        int dark = 1, round = 2, acrylic = 3;  // dark mode, rounded corners, acrylic backdrop
+        try
+        {
+            DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));    // DWMWA_USE_IMMERSIVE_DARK_MODE
+            DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));   // DWMWA_WINDOW_CORNER_PREFERENCE
+            DwmSetWindowAttribute(hwnd, 38, ref acrylic, sizeof(int)); // DWMWA_SYSTEMBACKDROP_TYPE
+        }
+        catch { /* older Windows without these attributes — plain window is fine */ }
     }
 
     public void RefreshLanguage() => Rebuild();
@@ -173,10 +195,12 @@ public partial class DashboardWindow : Window
 
         return new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x2C, 0x2C, 0x2E)),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(12),
-            Margin = new Thickness(6),
+            Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x3A, 0x3A, 0x3C)),
+            CornerRadius = new CornerRadius(14),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(13),
+            Margin = new Thickness(7),
             Width = 232,
             Child = stack
         };

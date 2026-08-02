@@ -4,29 +4,58 @@
         Title="BambuBar" Width="540" Height="660"
         WindowStartupLocation="Manual"
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
-        Background="#FF1C1C1E" Foreground="#FFF5F5F7"
-        FontFamily="Segoe UI">
-    <Border BorderBrush="#33FFFFFF" BorderThickness="1">
-    <DockPanel>
-        <Border DockPanel.Dock="Top" Background="#FF2C2C2E" Padding="14,10">
-            <Grid>
+        AllowsTransparency="False" Background="Transparent"
+        Foreground="#FFF5F5F7" FontFamily="Segoe UI Variable, Segoe UI">
+    <Window.Resources>
+        <!-- Soft, macOS-like buttons instead of the default Windows button chrome. -->
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#FFF5F5F7"/>
+            <Setter Property="Background" Value="#1EFFFFFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                CornerRadius="7" Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#33FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#4DFFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- Rounded, translucent panel body; the acrylic/mica backdrop (set via DWM) shows through. -->
+    <Border CornerRadius="12" Background="#B3242426" SnapsToDevicePixels="True">
+        <DockPanel Margin="2">
+            <Grid DockPanel.Dock="Top" Margin="16,14,12,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="BambuBar" FontSize="17" FontWeight="SemiBold"/>
+                    <TextBlock Text="BambuBar" FontSize="18" FontWeight="SemiBold"/>
                     <TextBlock x:Name="StatusLine" FontSize="11" Foreground="#FF9A9A9E" Margin="0,2,0,0"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="ScanButton" Content="⟳" Width="34" Height="28" Margin="4,0" ToolTip="Scan"/>
-                    <Button x:Name="AddButton" Content="+" Width="34" Height="28" Margin="4,0" FontSize="16" ToolTip="Add printer"/>
+                    <Button x:Name="ScanButton" Content="⟳" Width="32" Height="30" Margin="4,0" ToolTip="Scan"/>
+                    <Button x:Name="AddButton" Content="+" Width="32" Height="30" Margin="4,0" FontSize="17" ToolTip="Add printer"/>
                 </StackPanel>
             </Grid>
-        </Border>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
-            <WrapPanel x:Name="CardsPanel" Orientation="Horizontal"/>
-        </ScrollViewer>
-    </DockPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="9,2,9,10">
+                <WrapPanel x:Name="CardsPanel" Orientation="Horizontal"/>
+            </ScrollViewer>
+        </DockPanel>
     </Border>
 </Window>
