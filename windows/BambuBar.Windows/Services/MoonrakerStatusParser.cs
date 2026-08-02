@@ -126,6 +126,59 @@ public static class MoonrakerStatusParser
         return "8E8E93FF";
     }
 
+    /// <summary>Parses a Creality CFS WebSocket <c>boxsInfo</c> reply into AMS slots. Creality's
+    /// filament system is not a Klipper object; it lives on the printer's own ws://host:9999 API,
+    /// so this is fed separately from the Moonraker poll. Returns null when there are no boxes.</summary>
+    public static List<AmsSlot>? ParseCfs(byte[] data)
+    {
+        JsonElement root;
+        try { using var doc = JsonDocument.Parse(data); root = doc.RootElement.Clone(); }
+        catch { return null; }
+
+        JsonElement container = root;
+        if (root.ValueKind == JsonValueKind.Object)
+        {
+            if (root.TryGetProperty("boxsInfo", out var b) && b.ValueKind == JsonValueKind.Object) container = b;
+            else if (root.TryGetProperty("result", out var r) && r.ValueKind == JsonValueKind.Object) container = r;
+        }
+        if (!container.TryGetProperty("materialBoxs", out var boxes) || boxes.ValueKind != JsonValueKind.Array) return null;
+
+        var slots = new List<AmsSlot>();
+        int index = 0;
+        foreach (var box in boxes.EnumerateArray())
+        {
+            bool spool = (Int(box, "type") ?? 0) == 1;
+            if (!box.TryGetProperty("materials", out var materials) || materials.ValueKind != JsonValueKind.Array) continue;
+            foreach (var material in materials.EnumerateArray())
+            {
+                string type = Str(material, "type") ?? "";
+                string name = Str(material, "name") ?? "";
+                string display = type.Length > 0 ? type : (name.Length == 0 ? "—" : name);
+                slots.Add(new AmsSlot
+                {
+                    Id = $"cfs-{index}",
+                    Label = $"T{index}",
+                    Material = display,
+                    ColorHex = CfsColor(Str(material, "color")),
+                    RemainingPercent = Int(material, "percent"),
+                    IsActive = (Int(material, "selected") ?? 0) == 1,
+                    IsExternal = spool
+                });
+                index++;
+            }
+        }
+        return slots.Count > 0 ? slots : null;
+    }
+
+    /// <summary>CFS colours are hex, sometimes with an extra leading zero (e.g. "0fa7c0c").</summary>
+    private static string CfsColor(string? raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return "8E8E93FF";
+        var value = raw.StartsWith('#') ? raw[1..] : raw;
+        if (value.Length == 7) value = value[1..];
+        return AmsColor(value);
+    }
+
     private static bool Obj(JsonElement parent, string key, out JsonElement value)
     {
         if (parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(key, out value) && value.ValueKind == JsonValueKind.Object)

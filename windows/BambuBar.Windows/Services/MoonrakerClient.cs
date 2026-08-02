@@ -1,4 +1,7 @@
+using System.IO;
 using System.Net.Http;
+using System.Net.WebSockets;
+using System.Text;
 using System.Text.Json;
 using BambuBar.Models;
 
@@ -9,6 +12,7 @@ namespace BambuBar.Services;
 public sealed class MoonrakerClient : IPrinterConnection
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(8) };
+    private static readonly byte[] CfsRequest = Encoding.UTF8.GetBytes("{\"method\":\"get\",\"params\":{\"boxsInfo\":1}}");
 
     private readonly SavedPrinter _printer;
     private readonly Action<MqttEvent> _onEvent;
@@ -17,13 +21,21 @@ public sealed class MoonrakerClient : IPrinterConnection
     private bool _connectedReported;
     private bool _disconnectReported;
 
+    // Creality CFS lives on the printer's own WebSocket, not Moonraker; fed in on the side.
+    private readonly object _cfsLock = new();
+    private List<AmsSlot> _cfsSlots = new();
+
     public MoonrakerClient(SavedPrinter printer, Action<MqttEvent> onEvent)
     {
         _printer = printer;
         _onEvent = onEvent;
     }
 
-    public void Start() => _ = Task.Run(RunAsync);
+    public void Start()
+    {
+        _ = Task.Run(RunAsync);
+        _ = Task.Run(CfsLoopAsync);
+    }
 
     public void Stop()
     {
@@ -49,6 +61,9 @@ public sealed class MoonrakerClient : IPrinterConnection
                 var updated = MoonrakerStatusParser.Telemetry(data, _telemetry);
                 if (updated is not null)
                 {
+                    // A Creality CFS overrides the (absent) Happy Hare gates with its own slots.
+                    var cfs = CurrentCfsSlots();
+                    if (cfs.Count > 0) updated.AmsSlots = cfs;
                     _telemetry = updated;
                     if (!_connectedReported) { _connectedReported = true; _onEvent(new MqttEvent { Type = MqttEventType.Connected }); }
                     _onEvent(new MqttEvent { Type = MqttEventType.Telemetry, Telemetry = updated });
@@ -93,6 +108,78 @@ public sealed class MoonrakerClient : IPrinterConnection
         using var response = await Http.SendAsync(request, _cts.Token);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsByteArrayAsync(_cts.Token);
+    }
+
+    private List<AmsSlot> CurrentCfsSlots()
+    {
+        lock (_cfsLock) return new List<AmsSlot>(_cfsSlots);
+    }
+
+    private void SetCfsSlots(List<AmsSlot> slots)
+    {
+        lock (_cfsLock) _cfsSlots = slots;
+    }
+
+    /// <summary>Best-effort Creality CFS reader. Connects to the printer's ws://host:9999, asks for
+    /// <c>boxsInfo</c>, and maps any material boxes to AMS slots. Klipper printers without a CFS
+    /// (Voron, stock Moonraker) never answer on that port, so this backs off and stays idle.</summary>
+    private async Task CfsLoopAsync()
+    {
+        var uri = new Uri($"ws://{_printer.Host}:9999");
+        while (!_cts.IsCancellationRequested)
+        {
+            var socket = new ClientWebSocket();
+            Task? requester = null;
+            try
+            {
+                await socket.ConnectAsync(uri, _cts.Token);
+                await socket.SendAsync(CfsRequest, WebSocketMessageType.Text, true, _cts.Token);
+                requester = RequestCfsPeriodicallyAsync(socket);
+
+                var buffer = new byte[16384];
+                using var stream = new MemoryStream();
+                while (!_cts.IsCancellationRequested && socket.State == WebSocketState.Open)
+                {
+                    stream.SetLength(0);
+                    ValueWebSocketReceiveResult result;
+                    do
+                    {
+                        result = await socket.ReceiveAsync(buffer.AsMemory(), _cts.Token);
+                        if (result.MessageType == WebSocketMessageType.Close) break;
+                        stream.Write(buffer, 0, result.Count);
+                    } while (!result.EndOfMessage);
+                    if (result.MessageType == WebSocketMessageType.Close) break;
+
+                    var slots = MoonrakerStatusParser.ParseCfs(stream.ToArray());
+                    if (slots is not null) SetCfsSlots(slots);
+                }
+            }
+            catch (OperationCanceledException) { return; }
+            catch { /* connection refused/closed — expected on non-Creality printers */ }
+            finally
+            {
+                if (requester is not null) { try { await requester; } catch { } }
+                socket.Dispose();
+            }
+
+            if (_cts.IsCancellationRequested) return;
+            try { await Task.Delay(TimeSpan.FromSeconds(30), _cts.Token); }
+            catch (OperationCanceledException) { return; }
+        }
+    }
+
+    private async Task RequestCfsPeriodicallyAsync(ClientWebSocket socket)
+    {
+        try
+        {
+            while (!_cts.IsCancellationRequested && socket.State == WebSocketState.Open)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), _cts.Token);
+                if (socket.State == WebSocketState.Open)
+                    await socket.SendAsync(CfsRequest, WebSocketMessageType.Text, true, _cts.Token);
+            }
+        }
+        catch { /* socket closed or cancelled */ }
     }
 
     private void ReportDisconnected(string? reason)

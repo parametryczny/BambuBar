@@ -11,6 +11,13 @@ final class MoonrakerClient: PrinterConnection, @unchecked Sendable {
     private var connectedReported = false
     private var disconnectReported = false
 
+    // Creality CFS lives on the printer's own WebSocket, not Moonraker; fed in on the side.
+    private var cfsTask: Task<Void, Never>?
+    private var webSocket: URLSessionWebSocketTask?
+    private let cfsLock = NSLock()
+    private var cfsSlots: [AMSSlot] = []
+    private static let cfsRequest = "{\"method\":\"get\",\"params\":{\"boxsInfo\":1}}"
+
     init(printer: SavedPrinter, onEvent: @escaping @Sendable (MQTTClient.Event) -> Void) {
         self.printer = printer
         self.onEvent = onEvent
@@ -18,9 +25,14 @@ final class MoonrakerClient: PrinterConnection, @unchecked Sendable {
 
     func start() {
         task = Task.detached(priority: .utility) { [weak self] in await self?.run() }
+        cfsTask = Task.detached(priority: .utility) { [weak self] in await self?.runCFS() }
     }
 
-    func stop() { task?.cancel() }
+    func stop() {
+        task?.cancel()
+        cfsTask?.cancel()
+        webSocket?.cancel(with: .goingAway, reason: nil)
+    }
 
     private var baseURL: String { "http://\(printer.host):\(printer.port ?? 7125)" }
 
@@ -32,7 +44,10 @@ final class MoonrakerClient: PrinterConnection, @unchecked Sendable {
         while !Task.isCancelled {
             do {
                 let data = try await get(queryURL)
-                if let updated = MoonrakerStatusParser.telemetry(from: data, previous: telemetry) {
+                if var updated = MoonrakerStatusParser.telemetry(from: data, previous: telemetry) {
+                    // A Creality CFS overrides the (absent) Happy Hare gates with its own slots.
+                    let cfs = currentCFSSlots()
+                    if !cfs.isEmpty { updated.amsSlots = cfs }
                     telemetry = updated
                     if !connectedReported { connectedReported = true; onEvent(.connected) }
                     onEvent(.telemetry(updated))
@@ -76,6 +91,55 @@ final class MoonrakerClient: PrinterConnection, @unchecked Sendable {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         return data
+    }
+
+    private func currentCFSSlots() -> [AMSSlot] {
+        cfsLock.lock(); defer { cfsLock.unlock() }
+        return cfsSlots
+    }
+
+    private func setCFSSlots(_ slots: [AMSSlot]) {
+        cfsLock.lock(); cfsSlots = slots; cfsLock.unlock()
+    }
+
+    /// Best-effort Creality CFS reader. Connects to the printer's `ws://host:9999`, asks for
+    /// `boxsInfo`, and maps any material boxes to AMS slots. Klipper printers without a CFS (Voron,
+    /// stock Moonraker) simply never answer on that port, so this backs off and stays idle.
+    private func runCFS() async {
+        guard let url = URL(string: "ws://\(printer.host):9999") else { return }
+        while !Task.isCancelled {
+            let socket = URLSession.shared.webSocketTask(with: url)
+            webSocket = socket
+            socket.resume()
+
+            let requester = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await self?.webSocket?.send(.string(MoonrakerClient.cfsRequest))
+                    try? await Task.sleep(for: .seconds(5))
+                }
+            }
+            do {
+                while !Task.isCancelled {
+                    let message = try await socket.receive()
+                    let payload: Data?
+                    switch message {
+                    case .string(let text): payload = text.data(using: .utf8)
+                    case .data(let data): payload = data
+                    @unknown default: payload = nil
+                    }
+                    if let payload, let slots = MoonrakerStatusParser.parseCFS(from: payload) {
+                        setCFSSlots(slots)
+                    }
+                }
+            } catch {
+                // Connection refused/closed — expected on non-Creality printers.
+            }
+            requester.cancel()
+            socket.cancel(with: .goingAway, reason: nil)
+            webSocket = nil
+            if Task.isCancelled { return }
+            try? await Task.sleep(for: .seconds(30))   // gentle retry; don't hammer a closed port
+        }
     }
 
     private func reportDisconnected(_ reason: String?) {

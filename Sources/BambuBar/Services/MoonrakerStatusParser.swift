@@ -107,6 +107,51 @@ enum MoonrakerStatusParser {
         return slots
     }
 
+    /// Parses a Creality CFS WebSocket `boxsInfo` reply into AMS slots. Creality's filament system
+    /// is not a Klipper object; it lives on the printer's own `ws://host:9999` API, so this is fed
+    /// separately from the Moonraker poll. Returns nil when the payload holds no material boxes.
+    static func parseCFS(from data: Data) -> [AMSSlot]? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        // The box data may sit under "boxsInfo" or directly at the root, depending on firmware.
+        let container = (root["boxsInfo"] as? [String: Any])
+            ?? (root["result"] as? [String: Any])
+            ?? root
+        guard let boxes = container["materialBoxs"] as? [[String: Any]] else { return nil }
+
+        var slots: [AMSSlot] = []
+        var index = 0
+        for box in boxes {
+            let isSpoolHolder = (integer(box["type"]) ?? 0) == 1
+            let materials = box["materials"] as? [[String: Any]] ?? []
+            for material in materials {
+                let type = string(material["type"]) ?? ""
+                let name = string(material["name"]) ?? ""
+                let display = !type.isEmpty ? type : (name.isEmpty ? "—" : name)
+                let percent = integer(material["percent"])
+                let isActive = (integer(material["selected"]) ?? 0) == 1
+                slots.append(AMSSlot(
+                    id: "cfs-\(index)",
+                    label: "T\(index)",
+                    material: display,
+                    colorHex: cfsColor(string(material["color"])),
+                    remainingPercent: percent,
+                    isActive: isActive,
+                    isExternal: isSpoolHolder
+                ))
+                index += 1
+            }
+        }
+        return slots.isEmpty ? nil : slots
+    }
+
+    /// CFS colours are hex, sometimes with an extra leading zero (e.g. "0fa7c0c" → "fa7c0c").
+    private static func cfsColor(_ raw: String?) -> String {
+        guard var value = raw, !value.isEmpty else { return "8E8E93FF" }
+        if value.hasPrefix("#") { value.removeFirst() }
+        if value.count == 7 { value.removeFirst() }
+        return amsColor(value)
+    }
+
     /// Happy Hare gate colours are hex (6 chars) or a named colour; normalise to RRGGBBAA.
     private static func amsColor(_ raw: String?) -> String {
         guard var value = raw, !value.isEmpty else { return "8E8E93FF" }
