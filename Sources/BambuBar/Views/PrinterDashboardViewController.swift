@@ -238,8 +238,8 @@ final class PrinterDashboardViewController: NSViewController {
                         guard let self, let current = self.store.printers.first(where: { $0.serial == printer.serial }) else { return }
                         self.onReconnect(current)
                     },
-                    onOpenStudio: { [weak self] in self?.openBambuStudio(camera: false) },
                     onOpenCamera: { [weak self] in self?.openBambuStudio(camera: true) },
+                    onOpenSlicer: { url in SlicerLauncher.open(url) },
                     onCopyIP: { [weak self] in
                         guard let self, let host = self.store.printers.first(where: { $0.serial == printer.serial })?.host else { return }
                         self.copyIP(host)
@@ -577,8 +577,8 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
         printer: SavedPrinter,
         onEdit: @escaping () -> Void,
         onReconnect: @escaping () -> Void,
-        onOpenStudio: @escaping () -> Void,
         onOpenCamera: @escaping () -> Void,
+        onOpenSlicer: @escaping (URL) -> Void,
         onCopyIP: @escaping () -> Void,
         onRemove: @escaping () -> Void,
         onMove: @escaping (_ sourceSerial: String, _ targetSerial: String, _ insertAfter: Bool) -> Void
@@ -617,14 +617,30 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
         statusLabel.font = .systemFont(ofSize: 10, weight: .medium)
         statusLabel.lineBreakMode = .byTruncatingTail
 
-        let actions = CardActionsButton(entries: [
-            .init(polishTitle: "Połącz ponownie", englishTitle: "Reconnect", symbol: "arrow.clockwise", action: onReconnect),
-            .init(polishTitle: "Kamera w Bambu Studio", englishTitle: "Camera in Bambu Studio", symbol: "video.fill", action: onOpenCamera),
-            .init(polishTitle: "Otwórz Bambu Studio", englishTitle: "Open Bambu Studio", symbol: "square.and.arrow.up", action: onOpenStudio),
+        var actionEntries: [CardActionsButton.Entry] = [
+            .init(polishTitle: "Połącz ponownie", englishTitle: "Reconnect", symbol: "arrow.clockwise", action: onReconnect)
+        ]
+        // Camera lives in Bambu Studio, so it only makes sense for Bambu printers.
+        if printer.kind == .bambu {
+            actionEntries.append(.init(polishTitle: "Kamera w Bambu Studio", englishTitle: "Camera in Bambu Studio",
+                                       symbol: "video.fill", action: onOpenCamera))
+        }
+        // Any printer can open a slicer; offer whichever are installed as a submenu.
+        let slicers = SlicerLauncher.installed()
+        if !slicers.isEmpty {
+            let slicerEntries = slicers.map { slicer in
+                CardActionsButton.Entry(polishTitle: slicer.name, englishTitle: slicer.name,
+                                        symbol: "square.and.arrow.up", action: { onOpenSlicer(slicer.url) })
+            }
+            actionEntries.append(.init(polishTitle: "Otwórz slicer", englishTitle: "Open slicer",
+                                       symbol: "square.and.arrow.up", submenu: slicerEntries))
+        }
+        actionEntries.append(contentsOf: [
             .init(polishTitle: "Kopiuj adres IP", englishTitle: "Copy IP address", symbol: "doc.on.doc", action: onCopyIP),
             .init(polishTitle: "Edytuj drukarkę", englishTitle: "Edit printer", symbol: "pencil", action: onEdit),
             .init(polishTitle: "Usuń drukarkę", englishTitle: "Remove printer", symbol: "trash", action: onRemove)
         ])
+        let actions = CardActionsButton(entries: actionEntries)
         let handle = PrinterDragHandle { [weak self] event in self?.beginCardDrag(with: event) }
         dragHandle = handle
         let header = NSStackView(views: [stateDot, nameLabel, NSView(), handle, actions])
@@ -956,7 +972,22 @@ private final class CardActionsButton: NSButton {
         let polishTitle: String
         let englishTitle: String
         let symbol: String
-        let action: () -> Void
+        let action: (() -> Void)?
+        let submenu: [Entry]?
+
+        init(polishTitle: String, englishTitle: String, symbol: String,
+             action: (() -> Void)? = nil, submenu: [Entry]? = nil) {
+            self.polishTitle = polishTitle
+            self.englishTitle = englishTitle
+            self.symbol = symbol
+            self.action = action
+            self.submenu = submenu
+        }
+    }
+
+    private final class ActionBox {
+        let run: () -> Void
+        init(_ run: @escaping () -> Void) { self.run = run }
     }
 
     private let entries: [Entry]
@@ -978,21 +1009,30 @@ private final class CardActionsButton: NSButton {
 
     @objc private func showActions() {
         toolTip = AppSettings.shared.text("Więcej działań", "More actions")
-        let menu = NSMenu()
-        for (index, entry) in entries.enumerated() {
-            let title = AppSettings.shared.text(entry.polishTitle, entry.englishTitle)
-            let item = NSMenuItem(title: title, action: #selector(performAction(_:)), keyEquivalent: "")
-            item.image = NSImage(systemSymbolName: entry.symbol, accessibilityDescription: title)
-            item.target = self
-            item.tag = index
-            menu.addItem(item)
-        }
+        let menu = buildMenu(from: entries)
         menu.popUp(positioning: nil, at: NSPoint(x: bounds.maxX, y: bounds.minY), in: self)
     }
 
+    private func buildMenu(from entries: [Entry]) -> NSMenu {
+        let menu = NSMenu()
+        for entry in entries {
+            let title = AppSettings.shared.text(entry.polishTitle, entry.englishTitle)
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            item.image = NSImage(systemSymbolName: entry.symbol, accessibilityDescription: title)
+            if let submenu = entry.submenu {
+                item.submenu = buildMenu(from: submenu)
+            } else if let action = entry.action {
+                item.target = self
+                item.action = #selector(performAction(_:))
+                item.representedObject = ActionBox(action)
+            }
+            menu.addItem(item)
+        }
+        return menu
+    }
+
     @objc private func performAction(_ sender: NSMenuItem) {
-        guard entries.indices.contains(sender.tag) else { return }
-        entries[sender.tag].action()
+        (sender.representedObject as? ActionBox)?.run()
     }
 }
 

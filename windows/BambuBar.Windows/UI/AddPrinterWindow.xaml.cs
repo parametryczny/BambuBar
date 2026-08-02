@@ -32,6 +32,9 @@ public partial class AddPrinterWindow : Window
                 PortBox.Text = editing.Port?.ToString() ?? "";
                 ApiKeyBox.Text = editing.ApiKey ?? "";
             }
+            // The tray-pin checkbox is offered only when editing a saved printer (its serial is known).
+            ProgressCheck.Visibility = Visibility.Visible;
+            ProgressCheck.IsChecked = TrayProgressPreference.IsEnabled(editing.Serial);
         }
 
         BambuRadio.Checked += (_, _) => ApplyKind();
@@ -64,6 +67,8 @@ public partial class AddPrinterWindow : Window
         ApiKeyLabel.Text = AppSettings.Text("Klucz API (opcjonalnie)", "API key (optional)");
         CancelButton.Content = AppSettings.Text("Anuluj", "Cancel");
         SaveButton.Content = _editing is null ? AppSettings.Text("Dodaj", "Add") : AppSettings.Text("Zapisz", "Save");
+        ProgressCheck.Content = AppSettings.Text("Pokaż postęp tej drukarki w zasobniku",
+                                                 "Show this printer's progress in the tray");
     }
 
     private bool IsKlipper => KlipperRadio.IsChecked == true;
@@ -148,6 +153,13 @@ public partial class AddPrinterWindow : Window
                 _store.Update(_editing.Serial, NameBox.Text, SerialBox.Text, HostBox.Text, CodeBox.Text);
             else
                 _store.AddManually(NameBox.Text, SerialBox.Text, HostBox.Text, CodeBox.Text);
+
+            // The tray-pin checkbox is only shown when editing, so the final serial is known here.
+            if (_editing is not null)
+            {
+                var finalSerial = IsKlipper ? $"klipper-{HostBox.Text.Trim()}" : SerialBox.Text.Trim();
+                TrayProgressPreference.SetEnabled(ProgressCheck.IsChecked == true, finalSerial);
+            }
             Close();
         }
         catch (Exception ex)

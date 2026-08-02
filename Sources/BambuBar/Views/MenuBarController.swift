@@ -5,6 +5,7 @@ import Combine
 final class MenuBarController: NSObject, NSPopoverDelegate {
     private let store: PrinterStore
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private var progressItems: [String: NSStatusItem] = [:]
     private let popover = NSPopover()
     private var subscription: AnyCancellable?
     private var settingsSubscription: AnyCancellable?
@@ -40,14 +41,19 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         updateStatusItem()
+        updateProgressItems()
         subscription = store.objectWillChange.sink { [weak self] _ in
-            DispatchQueue.main.async { self?.updateStatusItem() }
+            DispatchQueue.main.async {
+                self?.updateStatusItem()
+                self?.updateProgressItems()
+            }
         }
         settingsSubscription = AppSettings.shared.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
                 self?.popover.appearance = AppSettings.shared.appearance
                 self?.popover.contentViewController?.view.appearance = AppSettings.shared.appearance
                 self?.updateStatusItem()
+                self?.updateProgressItems()
             }
         }
         notificationObserver = NotificationCenter.default.addObserver(
@@ -84,6 +90,51 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         button.toolTip = store.activePrintCount > 0
             ? AppSettings.shared.text("BambuBar — drukuje: \(store.activePrintCount)", "BambuBar — printing: \(store.activePrintCount)")
             : "BambuBar"
+    }
+
+    /// Adds/removes/updates one extra status item per printer pinned to the menu bar, showing its
+    /// live progress. Reconciled on every store change so it follows added/removed/renamed printers.
+    private func updateProgressItems() {
+        let validSerials = store.printers.map(\.serial)
+        MenuBarProgressPreference.prune(keeping: validSerials)
+        let pinned = Set(MenuBarProgressPreference.serials()).intersection(validSerials)
+
+        for (serial, item) in progressItems where !pinned.contains(serial) {
+            NSStatusBar.system.removeStatusItem(item)
+            progressItems[serial] = nil
+        }
+        for serial in pinned {
+            let item = progressItems[serial] ?? makeProgressItem()
+            progressItems[serial] = item
+            guard let button = item.button else { continue }
+            let printer = store.printers.first { $0.serial == serial }
+            button.title = progressTitle(name: printer?.name ?? serial, telemetry: store.telemetry[serial])
+            button.toolTip = printer?.name
+        }
+    }
+
+    private func makeProgressItem() -> NSStatusItem {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.button?.target = self
+        item.button?.action = #selector(progressItemClicked(_:))
+        return item
+    }
+
+    private func progressTitle(name: String, telemetry: PrinterTelemetry?) -> String {
+        guard let telemetry else { return name }
+        switch telemetry.state {
+        case .printing, .paused: return "\(name) \(telemetry.progress)%"
+        default: return name
+        }
+    }
+
+    @objc private func progressItemClicked(_ sender: NSStatusBarButton) {
+        if popover.isShown { closePopover(); return }
+        popover.appearance = AppSettings.shared.appearance
+        popover.contentViewController?.view.appearance = AppSettings.shared.appearance
+        NSApp.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+        installOutsideClickMonitor()
     }
 
     @objc private func togglePopover() {

@@ -2,9 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BambuBar" Width="540" Height="660"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="Manual"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
         Background="#FF1C1C1E" Foreground="#FFF5F5F7"
-        FontFamily="Segoe UI" ShowInTaskbar="True">
+        FontFamily="Segoe UI">
+    <Border BorderBrush="#33FFFFFF" BorderThickness="1">
     <DockPanel>
         <Border DockPanel.Dock="Top" Background="#FF2C2C2E" Padding="14,10">
             <Grid>
@@ -26,4 +28,5 @@
             <WrapPanel x:Name="CardsPanel" Orientation="Horizontal"/>
         </ScrollViewer>
     </DockPanel>
+    </Border>
 </Window>

@@ -1,6 +1,8 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using BambuBar.Models;
 using BambuBar.Services;
 using Application = System.Windows.Application;
 
@@ -11,6 +13,7 @@ public sealed class TrayIcon : IDisposable
 {
     private readonly PrinterStore _store;
     private readonly NotifyIcon _notifyIcon;
+    private readonly Dictionary<string, NotifyIcon> _progressIcons = new();
     private DashboardWindow? _dashboard;
     private SettingsWindow? _settings;
 
@@ -23,11 +26,11 @@ public sealed class TrayIcon : IDisposable
             Visible = true,
             Text = "BambuBar"
         };
-        _notifyIcon.DoubleClick += (_, _) => ShowDashboard();
-        _notifyIcon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowDashboard(); };
+        _notifyIcon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ToggleDashboard(); };
         _notifyIcon.ContextMenuStrip = BuildMenu();
-        _store.Updated += (_, _) => RefreshTooltip();
+        _store.Updated += (_, _) => { RefreshTooltip(); UpdateProgressIcons(); };
         RefreshTooltip();
+        UpdateProgressIcons();
     }
 
     private ContextMenuStrip BuildMenu()
@@ -67,17 +70,21 @@ public sealed class TrayIcon : IDisposable
         _dashboard?.RefreshLanguage();
     }
 
-    private void ShowDashboard()
+    private DashboardWindow EnsureDashboard()
     {
         if (_dashboard is null)
         {
             _dashboard = new DashboardWindow(_store);
             _dashboard.Closed += (_, _) => _dashboard = null;
         }
-        _dashboard.Show();
-        _dashboard.Activate();
-        _dashboard.WindowState = System.Windows.WindowState.Normal;
+        return _dashboard;
     }
+
+    // Tray left-click toggles the popover panel.
+    private void ToggleDashboard() => EnsureDashboard().TogglePopover();
+
+    // Menu items always show it.
+    private void ShowDashboard() => EnsureDashboard().ShowPopover();
 
     private void ShowSettings()
     {
@@ -104,6 +111,77 @@ public sealed class TrayIcon : IDisposable
         _notifyIcon.Text = active > 0
             ? AppSettings.Text($"BambuBar — {active} drukuje", $"BambuBar — {active} printing")
             : AppSettings.Text($"BambuBar — {total} drukarek", $"BambuBar — {total} printers");
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool DestroyIcon(IntPtr handle);
+
+    private readonly Dictionary<string, IntPtr> _progressHandles = new();
+
+    /// <summary>Adds/removes/updates one extra tray icon per printer pinned to the tray, each
+    /// showing its live progress. Mirrors the macOS extra menu-bar status items.</summary>
+    private void UpdateProgressIcons()
+    {
+        var validSerials = _store.Printers.Select(p => p.Serial).ToList();
+        TrayProgressPreference.Prune(validSerials);
+        var pinned = new HashSet<string>(TrayProgressPreference.Serials().Where(validSerials.Contains));
+
+        foreach (var serial in _progressIcons.Keys.Where(s => !pinned.Contains(s)).ToList())
+            RemoveProgressIcon(serial);
+
+        foreach (var serial in pinned)
+        {
+            var printer = _store.Printers.FirstOrDefault(p => p.Serial == serial);
+            _store.Telemetry.TryGetValue(serial, out var telemetry);
+            if (!_progressIcons.TryGetValue(serial, out var icon))
+            {
+                icon = new NotifyIcon { Visible = true };
+                icon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ToggleDashboard(); };
+                _progressIcons[serial] = icon;
+            }
+
+            string name = printer?.Name ?? serial;
+            int? percent = telemetry is { State: PrinterState.Printing or PrinterState.Paused }
+                ? telemetry.Progress : null;
+
+            if (_progressHandles.TryGetValue(serial, out var oldHandle)) DestroyIcon(oldHandle);
+            icon.Icon = BuildProgressIcon(percent, out var handle);
+            _progressHandles[serial] = handle;
+            icon.Text = percent is int p ? $"{name} — {p}%" : name;
+        }
+    }
+
+    private void RemoveProgressIcon(string serial)
+    {
+        if (_progressIcons.Remove(serial, out var icon))
+        {
+            icon.Visible = false;
+            icon.Dispose();
+        }
+        if (_progressHandles.Remove(serial, out var handle)) DestroyIcon(handle);
+    }
+
+    private static Icon BuildProgressIcon(int? percent, out IntPtr handle)
+    {
+        using var bmp = new Bitmap(32, 32);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.Clear(Color.Transparent);
+            var fill = percent is null
+                ? Color.FromArgb(230, 90, 90, 96)
+                : Color.FromArgb(235, 10, 132, 255);
+            using var back = new SolidBrush(fill);
+            using var path = RoundedRect(new Rectangle(1, 1, 30, 30), 7);
+            g.FillPath(back, path);
+            string text = percent is int p ? (p >= 100 ? "OK" : p.ToString()) : "–";
+            using var font = new Font("Segoe UI", text.Length >= 3 ? 11 : 15, FontStyle.Bold, GraphicsUnit.Pixel);
+            using var brush = new SolidBrush(Color.FromArgb(255, 245, 245, 247));
+            var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            g.DrawString(text, font, brush, new RectangleF(0, 0, 32, 32), format);
+        }
+        handle = bmp.GetHicon();
+        return Icon.FromHandle(handle);
     }
 
     private static Icon BuildIcon()
@@ -138,6 +216,7 @@ public sealed class TrayIcon : IDisposable
 
     public void Dispose()
     {
+        foreach (var serial in _progressIcons.Keys.ToList()) RemoveProgressIcon(serial);
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
     }

@@ -28,6 +28,7 @@ final class AddPrinterWindowController: NSWindowController {
     private let apiKeyField = NSTextField()
     private let portLabel = NSTextField(labelWithString: "")
     private let apiKeyLabel = NSTextField(labelWithString: "")
+    private let progressCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private var form = NSGridView()
     private var subscription: AnyCancellable?
     private var popupPrinters: [DiscoveredPrinter] = []
@@ -102,7 +103,7 @@ final class AddPrinterWindowController: NSWindowController {
         buttons.orientation = .horizontal
         buttons.spacing = 8
 
-        let stack = NSStackView(views: [titleLabel, typeControl, infoLabel, form, statusLabel, buttons])
+        let stack = NSStackView(views: [titleLabel, typeControl, infoLabel, form, progressCheck, statusLabel, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 14
@@ -188,6 +189,8 @@ final class AddPrinterWindowController: NSWindowController {
         apiKeyLabel.stringValue = settings.text("Klucz API:", "API key:")
         portField.placeholderString = "7125"
         apiKeyField.placeholderString = settings.text("opcjonalny", "optional")
+        progressCheck.title = settings.text("Pokaż postęp tej drukarki na pasku menu",
+                                            "Show this printer's progress in the menu bar")
     }
 
     private func refreshDiscovery() {
@@ -291,6 +294,12 @@ final class AddPrinterWindowController: NSWindowController {
             } else {
                 try store.addManually(name: nameField.stringValue, serial: serialField.stringValue, host: hostField.stringValue, accessCode: codeField.stringValue)
             }
+            // The menu-bar pin checkbox is only shown when editing, so its serial is known here.
+            if editingSerial != nil {
+                let host = hostField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let finalSerial = isKlipper ? "klipper-\(host)" : serialField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                MenuBarProgressPreference.setEnabled(progressCheck.state == .on, for: finalSerial)
+            }
             clear()
             close()
         } catch {
@@ -307,6 +316,7 @@ final class AddPrinterWindowController: NSWindowController {
         typeControl.isHidden = false
         typeControl.isEnabled = true
         typeControl.selectedSegment = 0
+        progressCheck.isHidden = true          // menu-bar pin is offered when editing a saved printer
         localize()
         applyKind()
         window?.title = settings.text("Dodaj drukarkę", "Add printer")
@@ -328,6 +338,8 @@ final class AddPrinterWindowController: NSWindowController {
         editingKind = printer.kind
         typeControl.selectedSegment = printer.kind == .klipper ? 1 : 0
         typeControl.isHidden = true          // kind is fixed when editing
+        progressCheck.isHidden = false
+        progressCheck.state = MenuBarProgressPreference.isEnabled(printer.serial) ? .on : .off
         localize()
         applyKind()
         window?.title = settings.text("Edytuj drukarkę \(printer.name)", "Edit printer \(printer.name)")

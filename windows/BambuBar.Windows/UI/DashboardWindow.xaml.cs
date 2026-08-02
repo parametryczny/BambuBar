@@ -19,7 +19,43 @@ public partial class DashboardWindow : Window
         AddButton.Click += (_, _) => OpenAddWindow();
         _store.Updated += OnStoreUpdated;
         Closed += (_, _) => _store.Updated -= OnStoreUpdated;
+        // Popover behaviour: dismiss when the user clicks away, like the macOS menu-bar panel —
+        // but stay open while one of our own dialogs (add printer) sits on top.
+        Deactivated += (_, _) =>
+        {
+            foreach (Window owned in OwnedWindows)
+                if (owned.IsVisible) return;
+            _lastHidden = DateTime.Now;
+            Hide();
+        };
         Rebuild();
+    }
+
+    private DateTime _lastHidden = DateTime.MinValue;
+
+    /// <summary>Positions the panel above the tray (bottom-right of the work area) and shows it,
+    /// or hides it if already visible — so a tray click toggles it like a popover.</summary>
+    public void TogglePopover()
+    {
+        if (IsVisible)
+        {
+            Hide();
+            return;
+        }
+        // A click on the tray icon while the panel is open first deactivates it (hiding it above);
+        // ignore that same click here so the panel stays hidden instead of immediately reopening.
+        if ((DateTime.Now - _lastHidden).TotalMilliseconds < 250) return;
+        ShowPopover();
+    }
+
+    /// <summary>Positions and shows the panel unconditionally (used by menu items).</summary>
+    public void ShowPopover()
+    {
+        var area = SystemParameters.WorkArea;
+        Left = area.Right - Width - 8;
+        Top = area.Bottom - Height - 8;
+        Show();
+        Activate();
     }
 
     public void RefreshLanguage() => Rebuild();
