@@ -8,67 +8,104 @@ enum AccessCodeStore {
     #if KEYCHAIN_STORAGE
     static let modeName = "Keychain"
     static let usesKeychain = true
-    private static let service = "pl.bambubar.printer-access-code.v2"
+    // All codes live in ONE keychain item (a JSON serial→code map). macOS shows its access
+    // prompt per keychain item, so a single item means at most one prompt no matter how many
+    // printers are saved — instead of one prompt per printer with per-serial items.
+    private static let service = "pl.bambubar.printer-access-codes.v3"
+    private static let account = "all"
+    // Older builds stored one item per serial; migration folds these in and deletes them.
+    private static let legacyService = "pl.bambubar.printer-access-code.v2"
+
+    // Read once per launch; save/delete keep it in sync, so the keychain is touched minimally.
+    private static var cache: [String: String]?
 
     static func save(accessCode: String, for serial: String) throws {
-        let data = Data(accessCode.utf8)
-        guard !data.isEmpty else { throw AccessCodeStoreError.invalidData }
-        let query = baseQuery(for: serial)
-        var readQuery = query
-        readQuery[kSecReturnData as String] = true
-        readQuery[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: CFTypeRef?
-        let readStatus = SecItemCopyMatching(readQuery as CFDictionary, &result)
-        if readStatus == errSecSuccess, let existing = result as? Data, existing == data { return }
-
-        if readStatus == errSecSuccess {
-            let status = SecItemUpdate(
-                query as CFDictionary,
-                [kSecValueData as String: data] as CFDictionary
-            )
-            guard status == errSecSuccess else { throw AccessCodeStoreError.keychain("update", status) }
-            return
-        }
-        guard readStatus == errSecItemNotFound else {
-            throw AccessCodeStoreError.keychain("lookup", readStatus)
-        }
-
-        var insert = query
-        insert[kSecValueData as String] = data
-        let status = SecItemAdd(insert as CFDictionary, nil)
-        guard status == errSecSuccess else { throw AccessCodeStoreError.keychain("add", status) }
+        guard !accessCode.isEmpty else { throw AccessCodeStoreError.invalidData }
+        var codes = allCodes()
+        guard codes[serial] != accessCode else { return }
+        codes[serial] = accessCode
+        try persist(codes)
     }
 
     static func accessCode(for serial: String) -> String? {
-        try? readAccessCode(for: serial)
+        let code = allCodes()[serial]
+        return (code?.isEmpty == false) ? code : nil
     }
 
     static func readAccessCode(for serial: String) throws -> String {
-        var query = baseQuery(for: serial)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess else {
-            if status == errSecItemNotFound { throw AccessCodeStoreError.missing }
-            throw AccessCodeStoreError.keychain("read", status)
-        }
-        guard let data = result as? Data, let value = String(data: data, encoding: .utf8) else {
-            throw AccessCodeStoreError.invalidData
-        }
+        guard let value = accessCode(for: serial) else { throw AccessCodeStoreError.missing }
         return value
     }
 
     static func delete(for serial: String) {
-        SecItemDelete(baseQuery(for: serial) as CFDictionary)
+        var codes = allCodes()
+        guard codes.removeValue(forKey: serial) != nil else { return }
+        try? persist(codes)
     }
 
-    private static func baseQuery(for serial: String) -> [String: Any] {
+    private static func allCodes() -> [String: String] {
+        if let cache { return cache }
+        let codes = readItem() ?? [:]
+        cache = codes
+        return codes
+    }
+
+    private static func readItem() -> [String: String]? {
+        var query = baseQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data,
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
+            return nil
+        }
+        return dict
+    }
+
+    private static func persist(_ codes: [String: String]) throws {
+        cache = codes
+        let data = try JSONSerialization.data(withJSONObject: codes)
+        let query = baseQuery()
+        if SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess {
+            let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+            guard status == errSecSuccess else { throw AccessCodeStoreError.keychain("update", status) }
+        } else {
+            var insert = query
+            insert[kSecValueData as String] = data
+            insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            let status = SecItemAdd(insert as CFDictionary, nil)
+            guard status == errSecSuccess else { throw AccessCodeStoreError.keychain("add", status) }
+        }
+    }
+
+    private static func baseQuery() -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: serial
+            kSecAttrAccount as String: account
         ]
+    }
+
+    /// One-time migration into the single consolidated item. Reads codes only from the plaintext
+    /// UserDefaults build (a prompt-free source) and writes them into the app's own keychain item,
+    /// then wipes the plaintext copy. Obsolete per-serial items are deleted by service — a delete
+    /// needs no data read, so it never triggers a keychain prompt.
+    static func migrateLegacyPlaintextCodes() {
+        SecItemDelete([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: legacyService
+        ] as CFDictionary)
+
+        let legacyKey = "printer-access-codes-local-v1"
+        guard let legacy = BambuDefaults.shared.dictionary(forKey: legacyKey) as? [String: String],
+              !legacy.isEmpty else { return }
+        var codes = allCodes()
+        for (serial, code) in legacy where !code.isEmpty && codes[serial] == nil {
+            codes[serial] = code
+        }
+        BambuDefaults.shared.removeObject(forKey: legacyKey)
+        try? persist(codes)
     }
     #else
     static let modeName = "Local"
@@ -103,6 +140,9 @@ enum AccessCodeStore {
     private static func storedValues() -> [String: String] {
         defaults.dictionary(forKey: storageKey) as? [String: String] ?? [:]
     }
+
+    /// No-op in the plaintext build; the Keychain build overrides this to migrate legacy codes.
+    static func migrateLegacyPlaintextCodes() {}
     #endif
 }
 

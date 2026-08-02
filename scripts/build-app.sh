@@ -9,9 +9,11 @@ export SWIFTPM_MODULECACHE_OVERRIDE="/private/tmp/bambubar-swift-cache"
 STORAGE_MODE="${1:-local}"
 case "$STORAGE_MODE" in
     local)
+        # Default build. Keeps the stable bundle id (so the Local Network grant persists) but
+        # stores printer access codes in the Keychain instead of plaintext UserDefaults.
         APP_NAME="BambuBar"
         BUNDLE_ID="pl.bambubar.app"
-        SWIFT_FLAGS=()
+        SWIFT_FLAGS=(-Xswiftc -DKEYCHAIN_STORAGE)
         ;;
     keychain)
         APP_NAME="BambuBar Keychain"

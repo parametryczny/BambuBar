@@ -109,35 +109,66 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
-        let showPanel = NSMenuItem(
-            title: settings.text("Pokaż drukarki", "Show printers"),
-            action: #selector(showPopoverFromMenu),
-            keyEquivalent: ""
-        )
-        showPanel.target = self
-        showPanel.image = NSImage(systemSymbolName: "printer.fill", accessibilityDescription: showPanel.title)
-        menu.addItem(showPanel)
-
-        let settingsItem = NSMenuItem(
-            title: settings.text("Ustawienia…", "Settings…"),
-            action: #selector(showSettings),
-            keyEquivalent: ","
-        )
-        settingsItem.target = self
-        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: settingsItem.title)
-        menu.addItem(settingsItem)
+        menu.addItem(row(icon: "printer.fill", tint: Self.accentTint,
+                         title: settings.text("Pokaż drukarki", "Show printers")) { [weak self] in
+            self?.showPopoverFromMenu()
+        })
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(
-            title: settings.text("Zakończ BambuBar", "Quit BambuBar"),
-            action: #selector(quitApplication),
-            keyEquivalent: ""
-        )
-        quit.target = self
-        menu.addItem(quit)
+        menu.addItem(row(icon: "antenna.radiowaves.left.and.right",
+                         title: settings.text("Szukaj drukarek…", "Search printers…"),
+                         enabled: !store.isScanning) { [weak self] in
+            self?.store.scan()
+        })
+        menu.addItem(row(icon: "arrow.clockwise",
+                         title: settings.text("Połącz ponownie (wszystkie)", "Reconnect (all)"),
+                         enabled: !store.printers.isEmpty) { [weak self] in
+            self?.store.reconnectAll()
+        })
+
+        menu.addItem(.separator())
+
+        menu.addItem(row(icon: "globe",
+                         title: settings.text("Język", "Language"),
+                         accessory: .value(settings.language == .pl ? "PL" : "EN")) {
+            AppSettings.shared.language = AppSettings.shared.language == .pl ? .en : .pl
+        })
+        menu.addItem(row(icon: "arrow.down.circle",
+                         title: settings.text("Sprawdź aktualizacje…", "Check for updates…"),
+                         accessory: .detail("v\(UpdateService.currentVersion)")) {
+            UpdatePresenter.checkAndPresent(from: nil)
+        })
+        menu.addItem(row(icon: "gearshape",
+                         title: settings.text("Ustawienia…", "Settings…"),
+                         accessory: .detail("⌘,")) { [weak self] in
+            self?.showSettings()
+        })
+
+        menu.addItem(.separator())
+
+        menu.addItem(row(icon: "power",
+                         title: settings.text("Zakończ BambuBar", "Quit BambuBar"),
+                         accessory: .detail("⌘Q")) {
+            NSApplication.shared.terminate(nil)
+        })
+
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY - 3), in: button)
     }
+
+    /// Warm coral tint used to highlight the primary "show printers" row, echoing the app icon.
+    private static let accentTint = NSColor(calibratedRed: 0.91, green: 0.57, blue: 0.49, alpha: 1)
+
+    private func row(icon: String, tint: NSColor = .secondaryLabelColor, title: String,
+                     accessory: MenuRowView.Accessory = .none, enabled: Bool = true,
+                     actions: [MenuRowView.Action] = [],
+                     onSelect: (() -> Void)? = nil) -> NSMenuItem {
+        let menuItem = NSMenuItem()
+        menuItem.view = MenuRowView(icon: icon, tint: tint, title: title, accessory: accessory,
+                                    enabled: enabled, actions: actions, onSelect: onSelect)
+        return menuItem
+    }
+
 
     @objc private func showPopoverFromMenu() {
         guard let button = statusItem.button else { return }

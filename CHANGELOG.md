@@ -2,6 +2,22 @@
 
 Wszystkie istotne zmiany w aplikacji BambuBar są opisane w tym pliku.
 
+## 0.2.0 — 2026-08-02
+
+### Klipper (macOS i Windows)
+
+- dodano obsługę drukarek Klipper (Moonraker) — dodawanie przez adres IP/host, opcjonalny port (domyślnie 7125) i klucz API, bez kodu dostępu i numeru seryjnego
+- wieloszpulowe systemy MMU (Happy Hare) są pokazywane jako sloty AMS: materiał, kolor i aktywna szpula
+
+### macOS
+
+- przebudowane menu prawego przycisku na ikonie paska — większe, czytelniejsze wiersze z szybkimi akcjami: „Szukaj drukarek…", „Połącz ponownie (wszystkie)", „Sprawdź aktualizacje…" oraz przełącznik języka PL/EN, bez wchodzenia w Ustawienia
+
+### Bezpieczeństwo (macOS)
+
+- kody dostępu do drukarek są teraz szyfrowane w pęku kluczy (Keychain) zamiast zwykłego tekstu; przechowywane w jednej pozycji, więc macOS nie pyta o dostęp osobno dla każdej drukarki. Istniejące kody są przenoszone automatycznie przy pierwszym uruchomieniu
+- auto-aktualizacja weryfikuje podpis pobranej wersji przed instalacją (musi być podpisana tą samą tożsamością co bieżąca aplikacja) — obcy lub zmodyfikowany pakiet jest odrzucany
+
 ## 0.1.19 — 2026-08-01
 
 - powiadomienia macOS są teraz natywne: mają własną ikonę BambuBar, a kliknięcie otwiera pulpit aplikacji zamiast Edytora skryptów

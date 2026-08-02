@@ -17,6 +17,7 @@ enum UpdateService {
         case noAsset
         case download
         case unpack
+        case signature
 
         var errorDescription: String? {
             // errorDescription is nonisolated, so read the language directly rather than via
@@ -30,6 +31,7 @@ enum UpdateService {
             case .noAsset: "Wydanie nie zawiera pliku aplikacji dla macOS."
             case .download: "Pobieranie aktualizacji nie powiodło się."
             case .unpack: "Nie udało się rozpakować aktualizacji."
+            case .signature: "Podpis pobranej aktualizacji nie zgadza się z bieżącą aplikacją. Instalację przerwano — pobierz wydanie ręcznie ze strony."
             }
         }
         private var english: String {
@@ -39,6 +41,7 @@ enum UpdateService {
             case .noAsset: "The release has no macOS app download."
             case .download: "Downloading the update failed."
             case .unpack: "Could not unpack the update."
+            case .signature: "The downloaded update is not signed by the same identity as the current app. Installation was aborted — download the release manually from the page."
             }
         }
     }
@@ -121,6 +124,12 @@ enum UpdateService {
             throw UpdateError.unpack
         }
 
+        // Refuse to install anything not signed by the same identity as the running app. HTTPS
+        // already authenticates GitHub as the source; this additionally ensures a tampered or
+        // foreign-signed asset can't silently replace the app, since the local signing key that
+        // produced the running build is never on the release server.
+        try verifySignatureMatchesCurrentApp(newApp)
+
         let destination = Bundle.main.bundleURL
         let script = work.appendingPathComponent("install.sh")
         let contents = """
@@ -150,5 +159,44 @@ enum UpdateService {
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { throw UpdateError.unpack }
+    }
+
+    /// Verifies the downloaded bundle's code signature is intact (`codesign --verify --strict`)
+    /// and that its leaf signing certificate matches the running app's. Any mismatch — an
+    /// ad-hoc, unsigned, or differently-signed bundle — aborts the install.
+    private static func verifySignatureMatchesCurrentApp(_ newApp: URL) throws {
+        let verify = Process()
+        verify.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        verify.arguments = ["--verify", "--strict", "--deep", "--", newApp.path]
+        verify.standardOutput = Pipe()
+        verify.standardError = Pipe()
+        do { try verify.run() } catch { throw UpdateError.signature }
+        verify.waitUntilExit()
+        guard verify.terminationStatus == 0 else { throw UpdateError.signature }
+
+        guard let current = signingAuthority(of: Bundle.main.bundleURL),
+              let candidate = signingAuthority(of: newApp),
+              current == candidate else {
+            throw UpdateError.signature
+        }
+    }
+
+    /// Returns the leaf-certificate authority (`Authority=` line) reported by `codesign -dvv`,
+    /// or nil for an unsigned/ad-hoc bundle (which then fails the equality check above).
+    private static func signingAuthority(of url: URL) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = ["-dvv", "--", url.path]
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+        process.standardOutput = Pipe()
+        do { try process.run() } catch { return nil }
+        let data = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0, let text = String(data: data, encoding: .utf8) else { return nil }
+        for line in text.split(separator: "\n") where line.hasPrefix("Authority=") {
+            return String(line.dropFirst("Authority=".count))
+        }
+        return nil
     }
 }

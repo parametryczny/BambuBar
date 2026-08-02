@@ -24,6 +24,7 @@ final class PrinterStore: ObservableObject {
     private var scanToken: UUID?
 
     init() {
+        AccessCodeStore.migrateLegacyPlaintextCodes()
         printers = persistence.load()
         for printer in printers { telemetry[printer.serial] = PrinterTelemetry() }
         Task { @MainActor [weak self] in
