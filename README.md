@@ -2,6 +2,10 @@
 
 **[English](#english)** · **[Polski](#polski)**
 
+[![Latest release](https://img.shields.io/github/v/release/parametryczny/BambuBar)](https://github.com/parametryczny/BambuBar/releases/latest)
+[![Total downloads](https://img.shields.io/github/downloads/parametryczny/BambuBar/total)](https://github.com/parametryczny/BambuBar/releases)
+[![License: MIT](https://img.shields.io/github/license/parametryczny/BambuBar)](LICENSE)
+
 ![BambuBar fleet dashboard](docs/renders/bambubar-fleet-dark-centered.png)
 
 <p align="center">
@@ -11,12 +15,11 @@
 
 ---
 
-## Downloads / Pobieranie
+## Downloads / Pobieranie — 0.2.0
 
-- [macOS Local](https://github.com/parametryczny/BambuBar/releases/download/v0.1.19/BambuBar-0.1.19-macOS-Local.zip)
-- [macOS Keychain](https://github.com/parametryczny/BambuBar/releases/download/v0.1.19/BambuBar-0.1.19-macOS-Keychain.zip)
-- [Windows x64 installer — beta, recommended](https://github.com/parametryczny/BambuBar/releases/download/v0.1.19/BambuBar-Setup-Windows-x64.exe)
-- [Windows x64 portable ZIP — beta](https://github.com/parametryczny/BambuBar/releases/download/v0.1.19/BambuBar-Windows-x64.zip)
+- [macOS](https://github.com/parametryczny/BambuBar/releases/download/v0.2.0/BambuBar-macOS-Local-0.2.0.zip) — access codes stored in the macOS Keychain / kody dostępu w pęku kluczy macOS
+- [Windows x64 installer — recommended / zalecany](https://github.com/parametryczny/BambuBar/releases/download/v0.2.0/BambuBar-Setup-Windows-x64.exe)
+- [Windows x64 portable ZIP](https://github.com/parametryczny/BambuBar/releases/download/v0.2.0/BambuBar-Windows-x64.zip)
 
 The Windows installer starts BambuBar after installation and enables launch at sign-in. Neither Windows download requires a separate .NET installation. / Instalator Windows uruchamia BambuBar po instalacji i włącza start przy logowaniu. Żaden wariant Windows nie wymaga osobnej instalacji .NET.
 
@@ -34,7 +37,7 @@ A compact, MIT-licensed macOS menu bar and Windows system-tray monitor for Bambu
 
 ### Latest changes
 
-Version 0.1.19 adds configurable notifications, improved telemetry handling and automatic update checks.
+Version 0.2.0 adds Klipper (Moonraker) printers with MMU support, a redesigned right-click menu, Keychain-stored access codes and signed-update verification.
 
 [Read the full changelog](CHANGELOG.md)
 
@@ -134,7 +137,7 @@ Kompaktowy monitor drukarek 3D Bambu Lab dla paska menu macOS i zasobnika system
 
 ### Najnowsze zmiany
 
-Wersja 0.1.19 dodaje konfigurowalne powiadomienia, ulepszoną obsługę telemetrii i automatyczne sprawdzanie aktualizacji.
+Wersja 0.2.0 dodaje drukarki Klipper (Moonraker) z obsługą MMU, przebudowane menu prawego przycisku, kody dostępu w pęku kluczy oraz weryfikację podpisu aktualizacji.
 
 [Zobacz pełny changelog](CHANGELOG.md)
 
