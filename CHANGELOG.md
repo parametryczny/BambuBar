@@ -2,12 +2,18 @@
 
 Wszystkie istotne zmiany w aplikacji BambuBar są opisane w tym pliku.
 
-## Nieopublikowane
+## 0.3.0 — 2026-08-02
 
 - dodano obsługę systemu filamentów Creality CFS na drukarkach Klipper (macOS i Windows) — odczyt przez WebSocket drukarki (`ws://host:9999`), sloty CFS (materiał, kolor, % pozostałości, aktywna szpula) pokazywane jako AMS; drukarki Klipper bez CFS działają bez zmian
 - opcje kamery i Bambu Studio pokazują się tylko dla drukarek Bambu; dla pozostałych dostępne jest podmenu „Otwórz slicer" z auto-wykrywaniem (Bambu Studio, OrcaSlicer, Creality Print, PrusaSlicer)
 - w edycji drukarki można przypiąć jej postęp do paska menu (macOS) / zasobnika (Windows) jako osobny wskaźnik %
-- Windows: panel drukarek działa jak popover przy zasobniku (chowany po utracie fokusu) zamiast zwykłego okna
+- dodano powiadomienie o dostępnej aktualizacji (macOS i Windows) — automatyczne sprawdzanie GitHub; kliknięcie instaluje (macOS) lub otwiera stronę wydania (Windows)
+
+### Windows
+
+- panel drukarek działa jak popover przy zasobniku (chowany po utracie fokusu), z zaokrąglonymi rogami, tłem acrylic i kafelkami w stylu macOS
+- przebudowane, czytelne okno ustawień ze skonsolidowanymi opcjami: język, autostart, powiadomienia oraz „Sprawdź aktualizacje"
+- karta drukarki ma menu „…" jak na macOS (Połącz ponownie, Kamera w Bambu Studio, Otwórz slicer, Kopiuj adres IP, Edytuj, Usuń)
 
 ## 0.2.0 — 2026-08-02
 
