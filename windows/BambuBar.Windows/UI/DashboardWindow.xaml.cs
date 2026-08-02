@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using BambuBar.Models;
@@ -176,22 +177,20 @@ public partial class DashboardWindow : Window
         if (!string.IsNullOrEmpty(message))
             stack.Children.Add(new TextBlock { Text = message, FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x9F, 0x0A)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
 
-        // Actions
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
-        actions.Children.Add(SmallButton(AppSettings.Text("Połącz", "Reconnect"), () => _store.Reconnect(printer)));
-        actions.Children.Add(SmallButton(AppSettings.Text("Edytuj", "Edit"), () =>
+        // Actions: a single "…" menu mirroring the macOS card menu.
+        var moreButton = new Button
         {
-            var w = new AddPrinterWindow(_store, printer) { Owner = this };
-            w.ShowDialog();
-        }));
-        actions.Children.Add(SmallButton(AppSettings.Text("Usuń", "Remove"), () =>
-        {
-            var confirm = MessageBox.Show(this,
-                AppSettings.Text($"Usunąć drukarkę {printer.Name}?", $"Remove printer {printer.Name}?"),
-                "BambuBar", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (confirm == MessageBoxResult.Yes) _store.Remove(printer);
-        }));
-        stack.Children.Add(actions);
+            Content = "⋯", FontSize = 16, Width = 34, Height = 26,
+            HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0)
+        };
+        var menu = BuildActionsPopup(printer);
+        menu.PlacementTarget = moreButton;
+        menu.Placement = PlacementMode.Bottom;
+        moreButton.Click += (_, _) => menu.IsOpen = !menu.IsOpen;
+        var actionsHost = new Grid();
+        actionsHost.Children.Add(moreButton);
+        actionsHost.Children.Add(menu);
+        stack.Children.Add(actionsHost);
 
         return new Border
         {
@@ -263,11 +262,72 @@ public partial class DashboardWindow : Window
         return border;
     }
 
-    private Button SmallButton(string text, Action onClick)
+    /// <summary>A dark, rounded popup menu for one printer card, mirroring the macOS "…" card menu:
+    /// reconnect, camera (Bambu), open in each installed slicer, copy IP, edit, remove.</summary>
+    private Popup BuildActionsPopup(SavedPrinter printer)
     {
-        var button = new Button { Content = text, FontSize = 11, Margin = new Thickness(0, 0, 6, 0), Padding = new Thickness(8, 3, 8, 3) };
-        button.Click += (_, _) => onClick();
-        return button;
+        var items = new StackPanel();
+        var popup = new Popup
+        {
+            StaysOpen = false,
+            AllowsTransparency = true,
+            PopupAnimation = PopupAnimation.Fade,
+            Child = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x2C, 0x2C, 0x2E)),
+                CornerRadius = new CornerRadius(10),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x2A, 0xFF, 0xFF, 0xFF)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(4),
+                MinWidth = 200,
+                Child = items
+            }
+        };
+
+        void Item(string text, Action action)
+        {
+            var button = new Button
+            {
+                Content = text,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Padding = new Thickness(12, 7, 12, 7),
+                Margin = new Thickness(2, 1, 2, 1),
+                FontSize = 12
+            };
+            button.Click += (_, _) => { popup.IsOpen = false; action(); };
+            items.Children.Add(button);
+        }
+
+        Item(AppSettings.Text("Połącz ponownie", "Reconnect"), () => _store.Reconnect(printer));
+
+        var slicers = SlicerLauncher.Installed();
+        if (printer.Kind == PrinterKind.Bambu)
+        {
+            var bambu = slicers.FirstOrDefault(s => s.Name == "Bambu Studio");
+            if (bambu is not null)
+                Item(AppSettings.Text("Kamera w Bambu Studio", "Camera in Bambu Studio"), () => SlicerLauncher.Open(bambu.Path));
+        }
+        foreach (var slicer in slicers)
+            Item(AppSettings.Text($"Otwórz w {slicer.Name}", $"Open in {slicer.Name}"), () => SlicerLauncher.Open(slicer.Path));
+
+        if (!string.IsNullOrEmpty(printer.Host))
+            Item(AppSettings.Text("Kopiuj adres IP", "Copy IP address"), () => { try { Clipboard.SetText(printer.Host); } catch { } });
+
+        Item(AppSettings.Text("Edytuj drukarkę", "Edit printer"), () =>
+        {
+            var window = new AddPrinterWindow(_store, printer) { Owner = this };
+            window.ShowDialog();
+        });
+        Item(AppSettings.Text("Usuń drukarkę", "Remove printer"), () =>
+        {
+            var confirm = MessageBox.Show(this,
+                AppSettings.Text($"Usunąć drukarkę {printer.Name}?", $"Remove printer {printer.Name}?"),
+                "BambuBar", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm == MessageBoxResult.Yes) _store.Remove(printer);
+        });
+
+        return popup;
     }
 
     private static string FormatEta(int? minutes)

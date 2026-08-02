@@ -24,8 +24,8 @@ public static class UpdateChecker
         }
     }
 
-    /// <summary>Returns a newer release the user has not been told about yet, otherwise null.</summary>
-    public static async Task<Release?> CheckAsync()
+    /// <summary>Fetches the latest release regardless of state; used by the manual "check" button.</summary>
+    public static async Task<(Release Release, bool IsNewer)?> LatestAsync()
     {
         try
         {
@@ -41,13 +41,20 @@ public static class UpdateChecker
             if (string.IsNullOrEmpty(tag)) return null;
 
             var version = tag.StartsWith("v") ? tag[1..] : tag;
-            if (!IsNewer(version, CurrentVersion)) return null;
-            if (Defaults.GetString(NotifiedKey) == version) return null;  // already notified
-
             var page = root.TryGetProperty("html_url", out var h) ? h.GetString() : null;
-            return new Release(version, page ?? "https://github.com/parametryczny/BambuBar/releases");
+            var release = new Release(version, page ?? "https://github.com/parametryczny/BambuBar/releases");
+            return (release, IsNewer(version, CurrentVersion));
         }
         catch { return null; }
+    }
+
+    /// <summary>Returns a newer release the user has not been told about yet, otherwise null.</summary>
+    public static async Task<Release?> CheckAsync()
+    {
+        var latest = await LatestAsync();
+        if (latest is not { } l || !l.IsNewer) return null;
+        if (Defaults.GetString(NotifiedKey) == l.Release.Version) return null;  // already notified
+        return l.Release;
     }
 
     public static void MarkNotified(string version) => Defaults.SetString(NotifiedKey, version);
