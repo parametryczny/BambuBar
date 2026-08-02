@@ -15,11 +15,11 @@
 
 ---
 
-## Downloads / Pobieranie — 0.2.0
+## Downloads / Pobieranie — 0.3.0
 
-- [macOS](https://github.com/parametryczny/BambuBar/releases/download/v0.2.0/BambuBar-macOS-Local-0.2.0.zip) — access codes stored in the macOS Keychain / kody dostępu w pęku kluczy macOS
-- [Windows x64 installer — recommended / zalecany](https://github.com/parametryczny/BambuBar/releases/download/v0.2.0/BambuBar-Setup-Windows-x64.exe)
-- [Windows x64 portable ZIP](https://github.com/parametryczny/BambuBar/releases/download/v0.2.0/BambuBar-Windows-x64.zip)
+- [macOS](https://github.com/parametryczny/BambuBar/releases/download/v0.3.0/BambuBar-macOS-Local-0.3.0.zip) — access codes stored in the macOS Keychain / kody dostępu w pęku kluczy macOS
+- [Windows x64 installer — recommended / zalecany](https://github.com/parametryczny/BambuBar/releases/download/v0.3.0/BambuBar-Setup-Windows-x64.exe)
+- [Windows x64 portable ZIP](https://github.com/parametryczny/BambuBar/releases/download/v0.3.0/BambuBar-Windows-x64.zip)
 
 The Windows installer starts BambuBar after installation and enables launch at sign-in. Neither Windows download requires a separate .NET installation. / Instalator Windows uruchamia BambuBar po instalacji i włącza start przy logowaniu. Żaden wariant Windows nie wymaga osobnej instalacji .NET.
 
@@ -37,7 +37,7 @@ A compact, MIT-licensed macOS menu bar and Windows system-tray monitor for Bambu
 
 ### Latest changes
 
-Version 0.2.0 adds Klipper (Moonraker) printers with MMU support, a redesigned right-click menu, Keychain-stored access codes and signed-update verification.
+Version 0.3.0 adds Creality CFS support, per-printer slicer and camera options, menu-bar/tray progress pins, update-available notifications and a fully restyled Windows UI.
 
 [Read the full changelog](CHANGELOG.md)
 
@@ -137,7 +137,7 @@ Kompaktowy monitor drukarek 3D Bambu Lab dla paska menu macOS i zasobnika system
 
 ### Najnowsze zmiany
 
-Wersja 0.2.0 dodaje drukarki Klipper (Moonraker) z obsługą MMU, przebudowane menu prawego przycisku, kody dostępu w pęku kluczy oraz weryfikację podpisu aktualizacji.
+Wersja 0.3.0 dodaje obsługę Creality CFS, opcje slicera i kamery per drukarka, przypięcie postępu do paska/zasobnika, powiadomienia o aktualizacji oraz przebudowany interfejs Windows.
 
 [Zobacz pełny changelog](CHANGELOG.md)
 
