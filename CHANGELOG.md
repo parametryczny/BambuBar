@@ -2,6 +2,23 @@
 
 Wszystkie istotne zmiany w aplikacji BambuBar są opisane w tym pliku.
 
+## 0.4.0 — 2026-08-03
+
+- dodano obsługę drukarek Prusa przez PrusaLink (macOS i Windows) — lokalnie po IP + klucz API, bez konta Prusy; odczyt stanu, postępu, czasu, temperatur i nazwy pliku
+- dodano godziny ciszy — wyciszenie powiadomień w wybranym oknie dobowym (domyślnie 22:00–07:00), ustawiane w Ustawieniach i przełączane z menu PPM / zasobnika
+- tryb kompaktowy z akordeonem: pełne kafle do 8 drukarek, powyżej zwarta lista (z przełącznikiem), klik w wiersz rozwija pełną kartę pod spodem; na Windows okno panelu powiększa się do rozwiniętej karty
+- przenoszenie kolejności drukarek metodą przeciągnij-i-upuść na obu platformach
+- dodano rozwijaną „Legendę kolorów" w PPM / zasobniku objaśniającą kolory statusu na kartach
+- macOS wykrywa język systemu przy pierwszym uruchomieniu (parytet z Windows); ręczny wybór ma pierwszeństwo
+
+### Poprawki
+
+- okno dodawania drukarki nie nadpisuje już wpisanych danych, gdy w tle odświeża się inna drukarka podczas skanowania (macOS i Windows)
+- Windows: menu „…" na karcie nie miga i nie zamyka się natychmiast (nakładka w oknie zamiast Popup)
+- Windows: karty aktualizowane przyrostowo zamiast przebudowy całego panelu przy każdym odczycie (koniec zacięć)
+- Windows: menu karty w bieżącym języku po przełączeniu PL/EN; log błędów do %AppData%\BambuBar\error.log
+- macOS: stan rozwinięcia czyszczony po usunięciu drukarki
+
 ## 0.3.0 — 2026-08-02
 
 - dodano obsługę systemu filamentów Creality CFS na drukarkach Klipper (macOS i Windows) — odczyt przez WebSocket drukarki (`ws://host:9999`), sloty CFS (materiał, kolor, % pozostałości, aktywna szpula) pokazywane jako AMS; drukarki Klipper bez CFS działają bez zmian

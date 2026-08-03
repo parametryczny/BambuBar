@@ -15,11 +15,11 @@
 
 ---
 
-## Downloads / Pobieranie — 0.3.0
+## Downloads / Pobieranie — 0.4.0
 
-- [macOS](https://github.com/parametryczny/BambuBar/releases/download/v0.3.0/BambuBar-macOS-Local-0.3.0.zip) — access codes stored in the macOS Keychain / kody dostępu w pęku kluczy macOS
-- [Windows x64 installer — recommended / zalecany](https://github.com/parametryczny/BambuBar/releases/download/v0.3.0/BambuBar-Setup-Windows-x64.exe)
-- [Windows x64 portable ZIP](https://github.com/parametryczny/BambuBar/releases/download/v0.3.0/BambuBar-Windows-x64.zip)
+- [macOS](https://github.com/parametryczny/BambuBar/releases/download/v0.4.0/BambuBar-macOS-Local-0.4.0.zip) — access codes stored in the macOS Keychain / kody dostępu w pęku kluczy macOS
+- [Windows x64 installer — recommended / zalecany](https://github.com/parametryczny/BambuBar/releases/download/v0.4.0/BambuBar-Setup-Windows-x64.exe)
+- [Windows x64 portable ZIP](https://github.com/parametryczny/BambuBar/releases/download/v0.4.0/BambuBar-Windows-x64.zip)
 
 The Windows installer starts BambuBar after installation and enables launch at sign-in. Neither Windows download requires a separate .NET installation. / Instalator Windows uruchamia BambuBar po instalacji i włącza start przy logowaniu. Żaden wariant Windows nie wymaga osobnej instalacji .NET.
 
