@@ -108,10 +108,34 @@ public sealed class TrayIcon : IDisposable
         quiet.Click += (_, _) => QuietHours.Enabled = quiet.Checked;
         menu.Items.Add(quiet);
 
+        menu.Items.Add(BuildColourLegend());
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem(AppSettings.Text("Zakończ", "Quit"), null, (_, _) => Application.Current.Shutdown()));
         _ = pl;
         return menu;
+    }
+
+    /// <summary>Non-interactive legend explaining the status colours on the cards. Emoji dots keep
+    /// the colours crisp; mirrors the macOS "Colour legend" submenu.</summary>
+    private static ToolStripMenuItem BuildColourLegend()
+    {
+        var legend = new ToolStripMenuItem(AppSettings.Text("Legenda kolorów", "Colour legend"));
+        (string Dot, string Text)[] entries =
+        {
+            ("🔵", AppSettings.Text("Drukuje (świeże dane)", "Printing (live data)")),
+            ("🟢", AppSettings.Text("Gotowe / zakończone", "Ready / finished")),
+            ("🟠", AppSettings.Text("Uwaga: nieświeże dane, pauza lub wilgotność AMS",
+                                    "Attention: stale data, paused, or AMS humidity")),
+            ("🔴", AppSettings.Text("Błąd drukarki", "Printer error")),
+            ("⚪", AppSettings.Text("Offline / brak / neutralna informacja", "Offline / none / neutral")),
+        };
+        foreach (var (dot, text) in entries)
+        {
+            // No Click handler — informational only; kept enabled so the emoji dot stays full-colour.
+            legend.DropDownItems.Add(new ToolStripMenuItem($"{dot}  {text}"));
+        }
+        return legend;
     }
 
     private void RebuildMenu()

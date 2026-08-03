@@ -207,6 +207,12 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             self?.showSettings()
         })
 
+        let legendItem = NSMenuItem(title: settings.text("Legenda kolorów", "Colour legend"),
+                                    action: nil, keyEquivalent: "")
+        legendItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
+        legendItem.submenu = colourLegendMenu(settings: settings)
+        menu.addItem(legendItem)
+
         menu.addItem(.separator())
 
         menu.addItem(row(icon: "power",
@@ -216,6 +222,27 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         })
 
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY - 3), in: button)
+    }
+
+    /// Non-interactive legend explaining what each status colour on the cards means. Emoji dots keep
+    /// the colours crisp without custom drawing, and match the in-chat explanation.
+    private func colourLegendMenu(settings: AppSettings) -> NSMenu {
+        let entries: [(String, String)] = [
+            ("🔵", settings.text("Drukuje (świeże dane)", "Printing (live data)")),
+            ("🟢", settings.text("Gotowe / zakończone", "Ready / finished")),
+            ("🟠", settings.text("Uwaga: nieświeże dane, pauza lub wilgotność AMS",
+                                 "Attention: stale data, paused, or AMS humidity")),
+            ("🔴", settings.text("Błąd drukarki", "Printer error")),
+            ("⚪", settings.text("Offline / brak / neutralna informacja", "Offline / none / neutral")),
+        ]
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        for (dot, text) in entries {
+            let item = NSMenuItem(title: "\(dot)  \(text)", action: nil, keyEquivalent: "")
+            item.isEnabled = true   // no action; kept enabled so the emoji dot stays full-colour
+            submenu.addItem(item)
+        }
+        return submenu
     }
 
     /// Warm coral tint used to highlight the primary "show printers" row, echoing the app icon.
