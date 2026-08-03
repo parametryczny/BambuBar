@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using BambuBar.Models;
@@ -26,20 +25,39 @@ public partial class DashboardWindow : Window
         _store.Updated += OnStoreUpdated;
         Closed += (_, _) => _store.Updated -= OnStoreUpdated;
         // Popover behaviour: dismiss when the user clicks away, like the macOS menu-bar panel —
-        // but stay open while one of our own dialogs (add printer) or card menus sits on top.
+        // but stay open while one of our own dialogs (add printer) sits on top.
         Deactivated += (_, _) =>
         {
-            if (_openMenus > 0) return;
             foreach (Window owned in OwnedWindows)
                 if (owned.IsVisible) return;
             _lastHidden = DateTime.Now;
             Hide();
         };
+        MenuBackdrop.MouseLeftButtonDown += (_, _) => HideCardMenu();
         Rebuild();
     }
 
     private DateTime _lastHidden = DateTime.MinValue;
-    private int _openMenus;
+    private FrameworkElement? _cardMenu;
+
+    private void ShowCardMenu(FrameworkElement anchor, FrameworkElement menu)
+    {
+        HideCardMenu();
+        _cardMenu = menu;
+        // Right-align the menu under the "…" button; MinWidth keeps positioning stable pre-layout.
+        var corner = anchor.TranslatePoint(new Point(anchor.ActualWidth, anchor.ActualHeight), MenuLayer);
+        menu.HorizontalAlignment = HorizontalAlignment.Left;
+        menu.VerticalAlignment = VerticalAlignment.Top;
+        menu.Margin = new Thickness(Math.Max(4, corner.X - 200), corner.Y + 2, 0, 0);
+        MenuLayer.Children.Add(menu);
+        MenuLayer.Visibility = Visibility.Visible;
+    }
+
+    private void HideCardMenu()
+    {
+        MenuLayer.Visibility = Visibility.Collapsed;
+        if (_cardMenu is not null) { MenuLayer.Children.Remove(_cardMenu); _cardMenu = null; }
+    }
 
     /// <summary>Positions the panel above the tray (bottom-right of the work area) and shows it,
     /// or hides it if already visible — so a tray click toggles it like a popover.</summary>
@@ -179,29 +197,19 @@ public partial class DashboardWindow : Window
         if (!string.IsNullOrEmpty(message))
             stack.Children.Add(new TextBlock { Text = message, FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x9F, 0x0A)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
 
-        // Actions: a single "…" menu mirroring the macOS card menu.
+        // Actions: a single "…" menu mirroring the macOS card menu, shown as an in-window overlay.
         var moreButton = new Button
         {
             Content = "⋯", FontSize = 16, Width = 34, Height = 26,
             HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0)
         };
-        var menu = BuildActionsPopup(printer);
-        menu.PlacementTarget = moreButton;
-        menu.Placement = PlacementMode.Bottom;
-        // Track open menus so the panel's click-away auto-hide doesn't fire when its own menu
-        // opens (the popup deactivates the window, which would otherwise dismiss the panel).
-        // Increment before opening so the guard is set before any deactivation message arrives.
-        menu.Closed += (_, _) => _openMenus = Math.Max(0, _openMenus - 1);
+        var menu = BuildCardMenu(printer);
         moreButton.Click += (_, _) =>
         {
-            if (menu.IsOpen) { menu.IsOpen = false; return; }
-            _openMenus++;
-            menu.IsOpen = true;
+            if (MenuLayer.Visibility == Visibility.Visible && ReferenceEquals(_cardMenu, menu)) HideCardMenu();
+            else ShowCardMenu(moreButton, menu);
         };
-        var actionsHost = new Grid();
-        actionsHost.Children.Add(moreButton);
-        actionsHost.Children.Add(menu);
-        stack.Children.Add(actionsHost);
+        stack.Children.Add(moreButton);
 
         return new Border
         {
@@ -273,26 +281,21 @@ public partial class DashboardWindow : Window
         return border;
     }
 
-    /// <summary>A dark, rounded popup menu for one printer card, mirroring the macOS "…" card menu:
-    /// reconnect, camera (Bambu), open in each installed slicer, copy IP, edit, remove.</summary>
-    private Popup BuildActionsPopup(SavedPrinter printer)
+    /// <summary>A dark, rounded menu for one printer card, mirroring the macOS "…" card menu:
+    /// reconnect, camera (Bambu), open in each installed slicer, copy IP, edit, remove. Shown as an
+    /// in-window overlay (not a Popup) so it stays visible under the topmost, borderless panel.</summary>
+    private Border BuildCardMenu(SavedPrinter printer)
     {
         var items = new StackPanel();
-        var popup = new Popup
+        var container = new Border
         {
-            StaysOpen = false,
-            AllowsTransparency = true,
-            PopupAnimation = PopupAnimation.Fade,
-            Child = new Border
-            {
-                Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x2C, 0x2C, 0x2E)),
-                CornerRadius = new CornerRadius(10),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x2A, 0xFF, 0xFF, 0xFF)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(4),
-                MinWidth = 200,
-                Child = items
-            }
+            Background = new SolidColorBrush(Color.FromArgb(0xF7, 0x2C, 0x2C, 0x2E)),
+            CornerRadius = new CornerRadius(10),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x2A, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4),
+            MinWidth = 200,
+            Child = items
         };
 
         void Item(string text, Action action)
@@ -306,7 +309,7 @@ public partial class DashboardWindow : Window
                 Margin = new Thickness(2, 1, 2, 1),
                 FontSize = 12
             };
-            button.Click += (_, _) => { popup.IsOpen = false; action(); };
+            button.Click += (_, _) => { HideCardMenu(); action(); };
             items.Children.Add(button);
         }
 
@@ -338,7 +341,7 @@ public partial class DashboardWindow : Window
             if (confirm == MessageBoxResult.Yes) _store.Remove(printer);
         });
 
-        return popup;
+        return container;
     }
 
     private static string FormatEta(int? minutes)

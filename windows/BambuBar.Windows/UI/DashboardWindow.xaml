@@ -41,24 +41,30 @@
 
     <!-- Rounded, translucent panel body; the acrylic/mica backdrop (set via DWM) shows through. -->
     <Border CornerRadius="12" Background="#B3242426" SnapsToDevicePixels="True">
-        <DockPanel Margin="2">
-            <Grid DockPanel.Dock="Top" Margin="16,14,12,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Text="BambuBar" FontSize="18" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="StatusLine" FontSize="11" Foreground="#FF9A9A9E" Margin="0,2,0,0"/>
-                </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="ScanButton" Content="⟳" Width="32" Height="30" Margin="4,0" ToolTip="Scan"/>
-                    <Button x:Name="AddButton" Content="+" Width="32" Height="30" Margin="4,0" FontSize="17" ToolTip="Add printer"/>
-                </StackPanel>
+        <Grid>
+            <DockPanel Margin="2">
+                <Grid DockPanel.Dock="Top" Margin="16,14,12,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="BambuBar" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="StatusLine" FontSize="11" Foreground="#FF9A9A9E" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="ScanButton" Content="⟳" Width="32" Height="30" Margin="4,0" ToolTip="Scan"/>
+                        <Button x:Name="AddButton" Content="+" Width="32" Height="30" Margin="4,0" FontSize="17" ToolTip="Add printer"/>
+                    </StackPanel>
+                </Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="9,2,9,10">
+                    <WrapPanel x:Name="CardsPanel" Orientation="Horizontal"/>
+                </ScrollViewer>
+            </DockPanel>
+            <!-- In-window card menu overlay (avoids Popup z-order issues under a topmost window). -->
+            <Grid x:Name="MenuLayer" Visibility="Collapsed">
+                <Border x:Name="MenuBackdrop" Background="#01000000"/>
             </Grid>
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="9,2,9,10">
-                <WrapPanel x:Name="CardsPanel" Orientation="Horizontal"/>
-            </ScrollViewer>
-        </DockPanel>
+        </Grid>
     </Border>
 </Window>
