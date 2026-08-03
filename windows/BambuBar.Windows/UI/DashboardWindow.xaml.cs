@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using BambuBar.Models;
@@ -175,6 +176,9 @@ public partial class DashboardWindow : Window
     private sealed class PrinterCard
     {
         public Border Root { get; }
+        public string Serial { get; }
+        private readonly DashboardWindow _owner;
+        private Point _dragStart;
         private readonly TextBlock _name, _pillText, _job, _percent, _eta, _layers, _nozzle, _bed, _message;
         private readonly Border _pill;
         private readonly ProgressBar _bar;
@@ -182,16 +186,35 @@ public partial class DashboardWindow : Window
 
         public PrinterCard(DashboardWindow owner, SavedPrinter printer)
         {
+            _owner = owner;
+            Serial = printer.Serial;
             var stack = new StackPanel();
 
             var header = new Grid();
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var grip = new TextBlock
+            {
+                Text = "⠿", FontSize = 13, Foreground = Muted(), Margin = new Thickness(0, 0, 7, 0),
+                VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.SizeAll
+            };
+            grip.PreviewMouseLeftButtonDown += (_, e) => _dragStart = e.GetPosition(null);
+            grip.MouseMove += (_, e) =>
+            {
+                if (e.LeftButton != MouseButtonState.Pressed) return;
+                var p = e.GetPosition(null);
+                if (Math.Abs(p.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                    Math.Abs(p.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+                DragDrop.DoDragDrop(Root, Serial, DragDropEffects.Move);
+            };
+            header.Children.Add(grip);
             _name = new TextBlock { FontWeight = FontWeights.SemiBold, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis };
+            Grid.SetColumn(_name, 1);
             header.Children.Add(_name);
             _pillText = new TextBlock { FontSize = 10, FontWeight = FontWeights.SemiBold };
             _pill = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(6, 2, 6, 2), VerticalAlignment = VerticalAlignment.Center, Child = _pillText };
-            Grid.SetColumn(_pill, 1);
+            Grid.SetColumn(_pill, 2);
             header.Children.Add(_pill);
             stack.Children.Add(header);
 
@@ -236,6 +259,19 @@ public partial class DashboardWindow : Window
                 Margin = new Thickness(7),
                 Width = 232,
                 Child = stack
+            };
+
+            Root.AllowDrop = true;
+            Root.DragOver += (_, e) =>
+            {
+                e.Effects = e.Data.GetDataPresent(DataFormats.StringFormat) ? DragDropEffects.Move : DragDropEffects.None;
+                e.Handled = true;
+            };
+            Root.Drop += (_, e) =>
+            {
+                if (e.Data.GetData(DataFormats.StringFormat) is not string sourceSerial || sourceSerial == Serial) return;
+                bool insertAfter = e.GetPosition(Root).X > Root.ActualWidth / 2;
+                _owner._store.MovePrinter(sourceSerial, Serial, insertAfter);
             };
         }
 

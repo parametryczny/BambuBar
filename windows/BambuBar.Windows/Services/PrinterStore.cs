@@ -41,6 +41,21 @@ public sealed class PrinterStore
 
     private void RaiseUpdated() => Updated?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Reorders a printer relative to another (drag-and-drop). Mirrors the macOS store.</summary>
+    public void MovePrinter(string serial, string relativeTo, bool insertAfter)
+    {
+        if (serial == relativeTo) return;
+        var sourceIndex = Printers.FindIndex(p => p.Serial == serial);
+        if (sourceIndex < 0) return;
+        var printer = Printers[sourceIndex];
+        Printers.RemoveAt(sourceIndex);
+        var targetIndex = Printers.FindIndex(p => p.Serial == relativeTo);
+        if (targetIndex < 0) Printers.Insert(Math.Min(sourceIndex, Printers.Count), printer);
+        else Printers.Insert(targetIndex + (insertAfter ? 1 : 0), printer);
+        SavedPrinterStore.Save(Printers);
+        RaiseUpdated();
+    }
+
     // ---- Discovery -----------------------------------------------------------------
 
     public void Scan()
