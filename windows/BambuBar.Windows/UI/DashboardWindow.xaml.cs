@@ -26,9 +26,10 @@ public partial class DashboardWindow : Window
         _store.Updated += OnStoreUpdated;
         Closed += (_, _) => _store.Updated -= OnStoreUpdated;
         // Popover behaviour: dismiss when the user clicks away, like the macOS menu-bar panel —
-        // but stay open while one of our own dialogs (add printer) sits on top.
+        // but stay open while one of our own dialogs (add printer) or card menus sits on top.
         Deactivated += (_, _) =>
         {
+            if (_openMenus > 0) return;
             foreach (Window owned in OwnedWindows)
                 if (owned.IsVisible) return;
             _lastHidden = DateTime.Now;
@@ -38,6 +39,7 @@ public partial class DashboardWindow : Window
     }
 
     private DateTime _lastHidden = DateTime.MinValue;
+    private int _openMenus;
 
     /// <summary>Positions the panel above the tray (bottom-right of the work area) and shows it,
     /// or hides it if already visible — so a tray click toggles it like a popover.</summary>
@@ -186,7 +188,16 @@ public partial class DashboardWindow : Window
         var menu = BuildActionsPopup(printer);
         menu.PlacementTarget = moreButton;
         menu.Placement = PlacementMode.Bottom;
-        moreButton.Click += (_, _) => menu.IsOpen = !menu.IsOpen;
+        // Track open menus so the panel's click-away auto-hide doesn't fire when its own menu
+        // opens (the popup deactivates the window, which would otherwise dismiss the panel).
+        // Increment before opening so the guard is set before any deactivation message arrives.
+        menu.Closed += (_, _) => _openMenus = Math.Max(0, _openMenus - 1);
+        moreButton.Click += (_, _) =>
+        {
+            if (menu.IsOpen) { menu.IsOpen = false; return; }
+            _openMenus++;
+            menu.IsOpen = true;
+        };
         var actionsHost = new Grid();
         actionsHost.Children.Add(moreButton);
         actionsHost.Children.Add(menu);
