@@ -27,7 +27,30 @@ public partial class SettingsWindow : Window
         LowFilamentCheckBox.Click += (_, _) => AppSettings.NotifyLowFilament = LowFilamentCheckBox.IsChecked == true;
         HighHumidityCheckBox.Click += (_, _) => AppSettings.NotifyHighAmsHumidity = HighHumidityCheckBox.IsChecked == true;
         CheckUpdatesButton.Click += async (_, _) => await CheckUpdatesAsync();
+        QuietHoursCheckBox.Click += (_, _) => { QuietHours.Enabled = QuietHoursCheckBox.IsChecked == true; QuietTimesRow.IsEnabled = QuietHoursCheckBox.IsChecked == true; };
+        QuietStartBox.LostFocus += (_, _) => SaveQuietTimes();
+        QuietEndBox.LostFocus += (_, _) => SaveQuietTimes();
         CloseButton.Click += (_, _) => Close();
+    }
+
+    private void SaveQuietTimes()
+    {
+        if (TryParseMinutes(QuietStartBox.Text, out var start)) QuietHours.StartMinutes = start;
+        else QuietStartBox.Text = MinutesToText(QuietHours.StartMinutes);
+        if (TryParseMinutes(QuietEndBox.Text, out var end)) QuietHours.EndMinutes = end;
+        else QuietEndBox.Text = MinutesToText(QuietHours.EndMinutes);
+    }
+
+    private static string MinutesToText(int minutes) => $"{minutes / 60:D2}:{minutes % 60:D2}";
+
+    private static bool TryParseMinutes(string text, out int minutes)
+    {
+        minutes = 0;
+        var parts = text.Trim().Split(':');
+        if (parts.Length != 2 || !int.TryParse(parts[0], out var h) || !int.TryParse(parts[1], out var m)) return false;
+        if (h < 0 || h > 23 || m < 0 || m > 59) return false;
+        minutes = h * 60 + m;
+        return true;
     }
 
     private void ApplyLanguage()
@@ -46,6 +69,9 @@ public partial class SettingsWindow : Window
         PrintPausedCheckBox.Content = AppSettings.Text("Druk wstrzymany", "Print paused");
         LowFilamentCheckBox.Content = AppSettings.Text("Niski poziom filamentu", "Low filament");
         HighHumidityCheckBox.Content = AppSettings.Text("Wysoka wilgotność AMS", "High AMS humidity");
+        QuietHoursCheckBox.Content = AppSettings.Text("Godziny ciszy (bez powiadomień)", "Quiet hours (no notifications)");
+        QuietFromLabel.Text = AppSettings.Text("od", "from");
+        QuietToLabel.Text = AppSettings.Text("do", "to");
 
         UpdatesHeading.Text = AppSettings.Text("AKTUALIZACJE", "UPDATES");
         UpdateStatus.Text = AppSettings.Text($"Wersja {UpdateChecker.CurrentVersion}", $"Version {UpdateChecker.CurrentVersion}");
@@ -62,6 +88,10 @@ public partial class SettingsWindow : Window
         PrintPausedCheckBox.IsChecked = AppSettings.NotifyPrintPaused;
         LowFilamentCheckBox.IsChecked = AppSettings.NotifyLowFilament;
         HighHumidityCheckBox.IsChecked = AppSettings.NotifyHighAmsHumidity;
+        QuietHoursCheckBox.IsChecked = QuietHours.Enabled;
+        QuietStartBox.Text = MinutesToText(QuietHours.StartMinutes);
+        QuietEndBox.Text = MinutesToText(QuietHours.EndMinutes);
+        QuietTimesRow.IsEnabled = QuietHours.Enabled;
     }
 
     private async Task CheckUpdatesAsync()

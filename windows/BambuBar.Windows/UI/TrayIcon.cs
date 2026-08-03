@@ -48,6 +48,8 @@ public sealed class TrayIcon : IDisposable
         {
             try
             {
+                if (!QuietHours.IsActive())
+                {
                 var release = await UpdateChecker.CheckAsync();
                 if (release is not null)
                 {
@@ -58,6 +60,7 @@ public sealed class TrayIcon : IDisposable
                         AppSettings.Text($"Wersja {release.Version} jest do pobrania. Kliknij, aby otworzyć stronę.",
                                          $"Version {release.Version} is available. Click to open the page."),
                         null);
+                }
                 }
             }
             catch (Exception ex) { BambuBar.App.LogError("UpdateCheck", ex); }
@@ -95,6 +98,15 @@ public sealed class TrayIcon : IDisposable
         };
         startup.Click += (_, _) => LaunchAtLogin.SetEnabled(startup.Checked);
         menu.Items.Add(startup);
+
+        var quiet = new ToolStripMenuItem(
+            AppSettings.Text($"Godziny ciszy ({QuietHours.RangeLabel()})", $"Quiet hours ({QuietHours.RangeLabel()})"))
+        {
+            Checked = QuietHours.Enabled,
+            CheckOnClick = true
+        };
+        quiet.Click += (_, _) => QuietHours.Enabled = quiet.Checked;
+        menu.Items.Add(quiet);
 
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem(AppSettings.Text("Zakończ", "Quit"), null, (_, _) => Application.Current.Shutdown()));

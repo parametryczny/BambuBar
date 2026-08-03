@@ -191,6 +191,11 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
                          accessory: .value(settings.language == .pl ? "PL" : "EN")) {
             AppSettings.shared.language = AppSettings.shared.language == .pl ? .en : .pl
         })
+        menu.addItem(row(icon: QuietHours.isEnabled ? "moon.fill" : "moon",
+                         title: settings.text("Godziny ciszy", "Quiet hours"),
+                         accessory: .detail(QuietHours.isEnabled ? QuietHours.rangeLabel() : settings.text("wył.", "off"))) {
+            QuietHours.isEnabled.toggle()
+        })
         menu.addItem(row(icon: "arrow.down.circle",
                          title: settings.text("Sprawdź aktualizacje…", "Check for updates…"),
                          accessory: .detail("v\(UpdateService.currentVersion)")) {

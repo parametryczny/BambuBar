@@ -10,6 +10,7 @@ public static class NotificationService
 
     public static void Post(string title, string body, string? subtitle = null)
     {
+        if (QuietHours.IsActive()) return;   // suppressed during quiet hours
         Sink?.Invoke(title, body, subtitle);
     }
 }

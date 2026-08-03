@@ -24,6 +24,9 @@ final class SettingsWindowController: NSWindowController {
     private let notifyPausedCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let notifyLowFilamentCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let notifyHumidityCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let quietHoursCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let quietStartPicker = NSDatePicker()
+    private let quietEndPicker = NSDatePicker()
     private var settingsSubscription: AnyCancellable?
 
     init() {
@@ -138,6 +141,22 @@ final class SettingsWindowController: NSWindowController {
         notificationsStack.alignment = .leading
         notificationsStack.spacing = 6
 
+        quietHoursCheck.target = self
+        quietHoursCheck.action = #selector(quietHoursChanged)
+        for picker in [quietStartPicker, quietEndPicker] {
+            picker.datePickerStyle = .textFieldAndStepper
+            picker.datePickerElements = .hourMinute
+            picker.target = self
+            picker.action = #selector(quietHoursChanged)
+        }
+        let quietDash = NSTextField(labelWithString: "–")
+        quietDash.textColor = .secondaryLabelColor
+        let quietRow = NSStackView(views: [quietHoursCheck, quietStartPicker, quietDash, quietEndPicker, NSView()])
+        quietRow.orientation = .horizontal
+        quietRow.alignment = .centerY
+        quietRow.spacing = 6
+        notificationsStack.addArrangedSubview(quietRow)
+
         let stack = NSStackView(views: [titleLabel, authorLabel, profileRow, form, launchRow, notificationsStack, separator, updateRow, actionRow])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -187,6 +206,12 @@ final class SettingsWindowController: NSWindowController {
         notifyPausedCheck.state = settings.notifyPaused ? .on : .off
         notifyLowFilamentCheck.state = settings.notifyLowFilament ? .on : .off
         notifyHumidityCheck.state = settings.notifyHumidity ? .on : .off
+        quietHoursCheck.title = settings.text("Godziny ciszy (bez powiadomień)", "Quiet hours (no notifications)")
+        quietHoursCheck.state = QuietHours.isEnabled ? .on : .off
+        quietStartPicker.dateValue = date(fromMinutes: QuietHours.startMinutes)
+        quietEndPicker.dateValue = date(fromMinutes: QuietHours.endMinutes)
+        quietStartPicker.isEnabled = QuietHours.isEnabled
+        quietEndPicker.isEnabled = QuietHours.isEnabled
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
             ?? "0.1.19"
         versionLabel.stringValue = settings.text("Wersja \(version)", "Version \(version)") + " • \(AccessCodeStore.modeName)"
@@ -197,6 +222,23 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func languageChanged() {
         AppSettings.shared.language = languageControl.selectedSegment == 0 ? .pl : .en
+    }
+
+    @objc private func quietHoursChanged() {
+        QuietHours.isEnabled = quietHoursCheck.state == .on
+        QuietHours.startMinutes = minutes(from: quietStartPicker.dateValue)
+        QuietHours.endMinutes = minutes(from: quietEndPicker.dateValue)
+        quietStartPicker.isEnabled = quietHoursCheck.state == .on
+        quietEndPicker.isEnabled = quietHoursCheck.state == .on
+    }
+
+    private func date(fromMinutes total: Int) -> Date {
+        Calendar.current.date(bySettingHour: total / 60, minute: total % 60, second: 0, of: Date()) ?? Date()
+    }
+
+    private func minutes(from date: Date) -> Int {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
     }
 
     @objc private func themeChanged() {

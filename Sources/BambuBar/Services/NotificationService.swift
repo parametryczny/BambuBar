@@ -21,6 +21,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
     }
 
     static func post(title: String, body: String, subtitle: String? = nil, userInfo: [String: String] = [:]) {
+        guard !QuietHours.isActive() else { return }   // suppressed during quiet hours
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

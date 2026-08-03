@@ -73,6 +73,14 @@ public static class Defaults
         lock (Gate) { _store[key] = Wrap(value); Persist(); }
     }
 
+    public static int GetInt(string key, int fallback = 0)
+        => _store.TryGetValue(key, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i) ? i : fallback;
+
+    public static void SetInt(string key, int value)
+    {
+        lock (Gate) { _store[key] = Wrap(value); Persist(); }
+    }
+
     public static Dictionary<string, string> GetStringDictionary(string key)
     {
         if (_store.TryGetValue(key, out var v) && v.ValueKind == JsonValueKind.Object)

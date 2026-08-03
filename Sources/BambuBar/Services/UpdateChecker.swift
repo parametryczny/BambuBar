@@ -17,6 +17,7 @@ enum UpdateChecker {
     }
 
     static func checkOnce() async {
+        guard !QuietHours.isActive() else { return }   // don't notify (or mark) during quiet hours
         guard let release = try? await UpdateService.latestRelease(),
               UpdateService.isNewer(release.version, than: UpdateService.currentVersion) else { return }
         // Only notify once per version so we don't nag on every check.

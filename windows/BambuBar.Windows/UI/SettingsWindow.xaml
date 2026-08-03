@@ -95,6 +95,14 @@
                     <CheckBox x:Name="PrintPausedCheckBox" Margin="0,7"/>
                     <CheckBox x:Name="LowFilamentCheckBox" Margin="0,7"/>
                     <CheckBox x:Name="HighHumidityCheckBox" Margin="0,7"/>
+                    <Border Height="1" Background="#18FFFFFF" Margin="0,9"/>
+                    <CheckBox x:Name="QuietHoursCheckBox" Margin="0,4"/>
+                    <StackPanel x:Name="QuietTimesRow" Orientation="Horizontal" Margin="30,6,0,2">
+                        <TextBlock x:Name="QuietFromLabel" VerticalAlignment="Center" FontSize="12" Foreground="#FFC7C7CC" Margin="0,0,6,0"/>
+                        <TextBox x:Name="QuietStartBox" Width="58" FontSize="13" Padding="6,3" Background="#FF2C2C2E" Foreground="#FFF5F5F7" CaretBrush="#FFF5F5F7" BorderBrush="#33FFFFFF" BorderThickness="1" TextAlignment="Center"/>
+                        <TextBlock x:Name="QuietToLabel" VerticalAlignment="Center" FontSize="12" Foreground="#FFC7C7CC" Margin="10,0,6,0"/>
+                        <TextBox x:Name="QuietEndBox" Width="58" FontSize="13" Padding="6,3" Background="#FF2C2C2E" Foreground="#FFF5F5F7" CaretBrush="#FFF5F5F7" BorderBrush="#33FFFFFF" BorderThickness="1" TextAlignment="Center"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
