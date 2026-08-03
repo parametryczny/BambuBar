@@ -194,7 +194,16 @@ public partial class DashboardWindow : Window
 
     private void AdjustHeight(bool compact, int count)
     {
-        double content = count == 0 ? 60 : compact ? count * 44 : Math.Ceiling(count / 2.0) * 182;
+        double content;
+        if (count == 0) content = 60;
+        else if (compact)
+        {
+            // Each expanded accordion row shows a full bento card beneath it; grow the window to fit
+            // it (like the macOS popover) instead of forcing the user to scroll.
+            int expanded = _views.Values.OfType<CompactRow>().Count(r => r.IsExpanded);
+            content = count * 44 + expanded * 196;
+        }
+        else content = Math.Ceiling(count / 2.0) * 182;
         Height = Math.Min(820, 84 + content);
         if (IsVisible)
         {
@@ -356,6 +365,7 @@ public partial class DashboardWindow : Window
     {
         public Border Root { get; }
         public string Serial { get; }
+        public bool IsExpanded => _full is not null && _full.Root.Visibility == Visibility.Visible;
         private readonly DashboardWindow _owner;
         private readonly StackPanel _stack;
         private readonly Ellipse _dot;
@@ -440,6 +450,7 @@ public partial class DashboardWindow : Window
             _full.Root.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             _chevron.Text = show ? "⌄" : "›";
             if (show) _full.Update(_printer, _telemetry, _message, _pl);
+            _owner.AdjustHeight(true, _owner._store.Printers.Count);   // grow/shrink to fit the card
         }
 
         public void Update(SavedPrinter printer, PrinterTelemetry t, string? message, bool pl)
