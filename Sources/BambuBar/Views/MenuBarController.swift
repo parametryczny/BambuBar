@@ -207,13 +207,15 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             self?.showSettings()
         })
 
-        menu.addItem(.separator())
-
-        // Colour legend — each line is a normal menu row with a tinted dot, so it carries an icon
-        // like every other option instead of looking like a plain sub-entry.
-        for (colour, text) in colourLegendEntries(settings: settings) {
-            menu.addItem(row(icon: "circle.fill", tint: colour, title: text))
-        }
+        let legendItem = NSMenuItem(title: settings.text("Legenda kolorów", "Colour legend"),
+                                    action: nil, keyEquivalent: "")
+        // isTemplate makes the SF Symbol actually render as a menu icon (tinted to the menu text),
+        // matching the other rows; without it the image doesn't show.
+        let legendIcon = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: nil)
+        legendIcon?.isTemplate = true
+        legendItem.image = legendIcon
+        legendItem.submenu = colourLegendMenu(settings: settings)
+        menu.addItem(legendItem)
 
         menu.addItem(.separator())
 
@@ -226,16 +228,25 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY - 3), in: button)
     }
 
-    /// Legend explaining what each status colour on the cards means, using the same tints the cards do.
-    private func colourLegendEntries(settings: AppSettings) -> [(NSColor, String)] {
-        [
-            (.systemBlue, settings.text("Drukuje (świeże dane)", "Printing (live data)")),
-            (.systemGreen, settings.text("Gotowe / zakończone", "Ready / finished")),
-            (.systemOrange, settings.text("Uwaga: nieświeże dane, pauza lub wilgotność AMS",
-                                          "Attention: stale data, paused, or AMS humidity")),
-            (.systemRed, settings.text("Błąd drukarki", "Printer error")),
-            (.secondaryLabelColor, settings.text("Offline / brak", "Offline / none")),
+    /// Expandable colour legend explaining what each status colour on the cards means. Emoji dots keep
+    /// the colours crisp inside the submenu without custom drawing.
+    private func colourLegendMenu(settings: AppSettings) -> NSMenu {
+        let entries: [(String, String)] = [
+            ("🔵", settings.text("Drukuje (świeże dane)", "Printing (live data)")),
+            ("🟢", settings.text("Gotowe / zakończone", "Ready / finished")),
+            ("🟠", settings.text("Uwaga: nieświeże dane, pauza lub wilgotność AMS",
+                                 "Attention: stale data, paused, or AMS humidity")),
+            ("🔴", settings.text("Błąd drukarki", "Printer error")),
+            ("⚪", settings.text("Offline / brak / neutralna informacja", "Offline / none / neutral")),
         ]
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        for (dot, text) in entries {
+            let item = NSMenuItem(title: "\(dot)  \(text)", action: nil, keyEquivalent: "")
+            item.isEnabled = true   // no action; kept enabled so the emoji dot stays full-colour
+            submenu.addItem(item)
+        }
+        return submenu
     }
 
     /// Warm coral tint used to highlight the primary "show printers" row, echoing the app icon.
