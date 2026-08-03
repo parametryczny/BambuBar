@@ -120,7 +120,7 @@ public sealed class TrayIcon : IDisposable
     /// the colours crisp; mirrors the macOS "Colour legend" submenu.</summary>
     private static ToolStripMenuItem BuildColourLegend()
     {
-        var legend = new ToolStripMenuItem(AppSettings.Text("Legenda kolorów", "Colour legend"));
+        var legend = new ToolStripMenuItem(AppSettings.Text("🎨  Legenda kolorów", "🎨  Colour legend"));
         (string Dot, string Text)[] entries =
         {
             ("🔵", AppSettings.Text("Drukuje (świeże dane)", "Printing (live data)")),

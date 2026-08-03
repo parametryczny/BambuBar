@@ -207,13 +207,11 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             self?.showSettings()
         })
 
-        let legendItem = NSMenuItem(title: settings.text("Legenda kolorów", "Colour legend"),
+        // Every icon in this menu is drawn by a custom row view; a plain NSMenuItem's native image
+        // doesn't render here, and a view-based item won't open a submenu on hover. So the icon is an
+        // emoji in the title — it always renders and keeps the row expandable.
+        let legendItem = NSMenuItem(title: settings.text("🎨  Legenda kolorów", "🎨  Colour legend"),
                                     action: nil, keyEquivalent: "")
-        // isTemplate makes the SF Symbol actually render as a menu icon (tinted to the menu text),
-        // matching the other rows; without it the image doesn't show.
-        let legendIcon = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: nil)
-        legendIcon?.isTemplate = true
-        legendItem.image = legendIcon
         legendItem.submenu = colourLegendMenu(settings: settings)
         menu.addItem(legendItem)
 
