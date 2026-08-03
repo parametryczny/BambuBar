@@ -1,5 +1,7 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using BambuBar.Models;
 using BambuBar.Services;
 
@@ -13,6 +15,7 @@ public partial class AddPrinterWindow : Window
     public AddPrinterWindow(PrinterStore store, SavedPrinter? editing = null)
     {
         InitializeComponent();
+        SourceInitialized += (_, _) => ApplyModernChrome();
         _store = store;
         _editing = editing;
 
@@ -172,6 +175,23 @@ public partial class AddPrinterWindow : Window
     {
         ErrorText.Text = message;
         ErrorText.Visibility = Visibility.Visible;
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    private void ApplyModernChrome()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        int dark = 1, round = 2, acrylic = 3;
+        try
+        {
+            DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));
+            DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
+            DwmSetWindowAttribute(hwnd, 38, ref acrylic, sizeof(int));
+        }
+        catch { /* older Windows — plain window is fine */ }
     }
 
     private sealed class DiscoveredItem
