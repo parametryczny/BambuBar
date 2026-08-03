@@ -99,7 +99,7 @@ public sealed class AmsSlot
     public AmsSlot Clone() => (AmsSlot)MemberwiseClone();
 }
 
-public enum PrinterKind { Bambu, Klipper }
+public enum PrinterKind { Bambu, Klipper, Prusa }
 
 public sealed class SavedPrinter
 {

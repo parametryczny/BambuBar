@@ -23,7 +23,7 @@ final class AddPrinterWindowController: NSWindowController {
     private let hostLabel = NSTextField(labelWithString: "")
     private let serialLabel = NSTextField(labelWithString: "")
     private let codeLabel = NSTextField(labelWithString: "")
-    private let typeControl = NSSegmentedControl(labels: ["Bambu", "Klipper"], trackingMode: .selectOne, target: nil, action: nil)
+    private let typeControl = NSSegmentedControl(labels: ["Bambu", "Klipper", "Prusa"], trackingMode: .selectOne, target: nil, action: nil)
     private let portField = NSTextField()
     private let apiKeyField = NSTextField()
     private let portLabel = NSTextField(labelWithString: "")
@@ -123,29 +123,44 @@ final class AddPrinterWindowController: NSWindowController {
         applyKind()
     }
 
-    private var isKlipper: Bool { typeControl.selectedSegment == 1 }
+    private var selectedKind: PrinterKind {
+        switch typeControl.selectedSegment {
+        case 1: return .klipper
+        case 2: return .prusa
+        default: return .bambu
+        }
+    }
+    /// Klipper and Prusa both connect over HTTP with host/port/API key; Bambu uses discovery + code.
+    private var usesHostFields: Bool { selectedKind != .bambu }
 
-    /// Shows the fields for the selected printer type; Klipper needs only host/port/API key.
+    /// Shows the fields for the selected printer type.
     private func applyKind() {
-        let klipper = isKlipper
+        let hostBased = usesHostFields
         // rows: 0 detected, 1 Bambu Studio, 2 name, 3 host, 4 serial, 5 code, 6 port, 7 API key
-        form.row(at: 0).isHidden = klipper
-        form.row(at: 1).isHidden = klipper
-        form.row(at: 4).isHidden = klipper
-        form.row(at: 5).isHidden = klipper
-        form.row(at: 6).isHidden = !klipper
-        form.row(at: 7).isHidden = !klipper
+        form.row(at: 0).isHidden = hostBased
+        form.row(at: 1).isHidden = hostBased
+        form.row(at: 4).isHidden = hostBased
+        form.row(at: 5).isHidden = hostBased
+        form.row(at: 6).isHidden = !hostBased
+        form.row(at: 7).isHidden = !hostBased
         let settings = AppSettings.shared
-        infoLabel.stringValue = klipper
-            ? settings.text(
+        switch selectedKind {
+        case .klipper:
+            infoLabel.stringValue = settings.text(
                 "Podaj adres IP hosta Klipper (Moonraker, port 7125). Kod dostępu nie jest wymagany.",
                 "Enter the Klipper host IP (Moonraker, port 7125). No access code is needed.")
-            : settings.text(
+        case .prusa:
+            infoLabel.stringValue = settings.text(
+                "Podaj adres IP drukarki Prusa (PrusaLink, port 80) i klucz API z ustawień PrusaLink. Bez konta Prusy.",
+                "Enter the Prusa printer IP (PrusaLink, port 80) and the API key from PrusaLink settings. No Prusa account.")
+        case .bambu:
+            infoLabel.stringValue = settings.text(
                 "Wybierz urządzenie znalezione w Wi‑Fi albo wpisz dane ręcznie. ",
                 "Select a device found on Wi-Fi or enter its details manually. ")
                 + (AccessCodeStore.usesKeychain
                     ? settings.text("Kod zostanie zapisany w pęku kluczy macOS.", "The code is stored in macOS Keychain.")
                     : settings.text("Kod zostanie zapisany w lokalnych ustawieniach tego Maca.", "The code is stored in this Mac's local preferences."))
+        }
     }
 
     @objc private func kindChanged() {
@@ -271,33 +286,48 @@ final class AddPrinterWindowController: NSWindowController {
         window?.makeFirstResponder(codeField)
     }
 
+    /// When editing a Klipper/Prusa printer whose host changed, the derived identifier changes too;
+    /// remove the stale entry left under the old identifier.
+    private func dropOldEntryIfIdentifierChanged(_ newIdentifier: String) {
+        if let editingSerial, editingSerial != newIdentifier,
+           let old = store.printers.first(where: { $0.serial == editingSerial }) {
+            store.remove(old)
+        }
+    }
+
     @objc private func savePrinter() {
         statusLabel.stringValue = ""
         do {
-            if isKlipper {
-                let port = Int(portField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
-                let host = hostField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let host = hostField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let port = Int(portField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+            switch selectedKind {
+            case .klipper:
                 try store.addKlipper(name: nameField.stringValue, host: host, port: port, apiKey: apiKeyField.stringValue)
-                // Editing that changed the host produces a new identifier; drop the old entry.
-                if let editingSerial, editingSerial != "klipper-\(host)",
-                   let old = store.printers.first(where: { $0.serial == editingSerial }) {
-                    store.remove(old)
+                dropOldEntryIfIdentifierChanged("klipper-\(host)")
+            case .prusa:
+                try store.addPrusa(name: nameField.stringValue, host: host, port: port, apiKey: apiKeyField.stringValue)
+                dropOldEntryIfIdentifierChanged("prusa-\(host)")
+            case .bambu:
+                if let editingSerial {
+                    try store.update(
+                        originalSerial: editingSerial,
+                        name: nameField.stringValue,
+                        serial: serialField.stringValue,
+                        host: hostField.stringValue,
+                        accessCode: codeField.stringValue
+                    )
+                } else {
+                    try store.addManually(name: nameField.stringValue, serial: serialField.stringValue, host: hostField.stringValue, accessCode: codeField.stringValue)
                 }
-            } else if let editingSerial {
-                try store.update(
-                    originalSerial: editingSerial,
-                    name: nameField.stringValue,
-                    serial: serialField.stringValue,
-                    host: hostField.stringValue,
-                    accessCode: codeField.stringValue
-                )
-            } else {
-                try store.addManually(name: nameField.stringValue, serial: serialField.stringValue, host: hostField.stringValue, accessCode: codeField.stringValue)
             }
             // The menu-bar pin checkbox is only shown when editing, so its serial is known here.
             if editingSerial != nil {
-                let host = hostField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                let finalSerial = isKlipper ? "klipper-\(host)" : serialField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let finalSerial: String
+                switch selectedKind {
+                case .klipper: finalSerial = "klipper-\(host)"
+                case .prusa: finalSerial = "prusa-\(host)"
+                case .bambu: finalSerial = serialField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
                 MenuBarProgressPreference.setEnabled(progressCheck.state == .on, for: finalSerial)
             }
             clear()
@@ -336,7 +366,11 @@ final class AddPrinterWindowController: NSWindowController {
         let settings = AppSettings.shared
         editingSerial = printer.serial
         editingKind = printer.kind
-        typeControl.selectedSegment = printer.kind == .klipper ? 1 : 0
+        switch printer.kind {
+        case .bambu: typeControl.selectedSegment = 0
+        case .klipper: typeControl.selectedSegment = 1
+        case .prusa: typeControl.selectedSegment = 2
+        }
         typeControl.isHidden = true          // kind is fixed when editing
         progressCheck.isHidden = false
         progressCheck.state = MenuBarProgressPreference.isEnabled(printer.serial) ? .on : .off
@@ -348,7 +382,7 @@ final class AddPrinterWindowController: NSWindowController {
         hostField.stringValue = printer.host
         statusLabel.stringValue = ""
         statusLabel.textColor = .systemRed
-        if printer.kind == .klipper {
+        if printer.kind != .bambu {
             portField.stringValue = printer.port.map(String.init) ?? ""
             apiKeyField.stringValue = printer.apiKey ?? ""
         } else {

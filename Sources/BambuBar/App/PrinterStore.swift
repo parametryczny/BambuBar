@@ -113,6 +113,32 @@ final class PrinterStore: ObservableObject {
         reconnect(printer)
     }
 
+    func addPrusa(name: String, host: String, port: Int?, apiKey: String?) throws {
+        let cleanHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanHost.isEmpty else {
+            throw ValidationError("Podaj adres IP drukarki Prusa.")
+        }
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let identifier = "prusa-\(cleanHost)"
+        let printer = SavedPrinter(
+            serial: identifier,
+            name: cleanName.isEmpty ? "Prusa \(cleanHost)" : cleanName,
+            model: "Prusa",
+            host: cleanHost,
+            kind: .prusa,
+            port: port,
+            apiKey: (apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+        )
+        if let index = printers.firstIndex(where: { $0.serial == identifier }) {
+            printers[index] = printer
+        } else {
+            printers.append(printer)
+        }
+        telemetry[identifier] = PrinterTelemetry()
+        persistence.save(printers)
+        reconnect(printer)
+    }
+
     @discardableResult
     func importFromBambuStudio() throws -> Int {
         let devices = try BambuStudioConfig.devices()
@@ -204,6 +230,8 @@ final class PrinterStore: ObservableObject {
         switch printer.kind {
         case .klipper:
             client = MoonrakerClient(printer: printer, onEvent: handler)
+        case .prusa:
+            client = PrusaLinkClient(printer: printer, onEvent: handler)
         case .bambu:
             let code: String
             if let sessionCode = sessionCodes[printer.serial] {

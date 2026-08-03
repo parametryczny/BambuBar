@@ -165,6 +165,32 @@ public sealed class PrinterStore
         RaiseUpdated();
     }
 
+    public void AddPrusa(string name, string host, int? port, string? apiKey)
+    {
+        var cleanHost = host.Trim();
+        if (cleanHost.Length == 0)
+            throw new ArgumentException(AppSettings.Text("Adres IP / nazwa hosta jest wymagana.", "IP address / host name is required."));
+        var cleanName = name.Trim();
+        var cleanKey = apiKey?.Trim();
+        var printer = new SavedPrinter
+        {
+            Serial = $"prusa-{cleanHost}",
+            Name = cleanName.Length == 0 ? $"Prusa {cleanHost}" : cleanName,
+            Model = "Prusa",
+            Host = cleanHost,
+            Kind = PrinterKind.Prusa,
+            Port = port,
+            ApiKey = string.IsNullOrEmpty(cleanKey) ? null : cleanKey
+        };
+
+        var index = Printers.FindIndex(p => p.Serial == printer.Serial);
+        if (index >= 0) Printers[index] = printer; else Printers.Add(printer);
+        Telemetry[printer.Serial] = new PrinterTelemetry();
+        SavedPrinterStore.Save(Printers);
+        Reconnect(printer);
+        RaiseUpdated();
+    }
+
     public int ImportFromBambuStudio()
     {
         var devices = BambuStudioConfig.Devices();
@@ -272,6 +298,14 @@ public sealed class PrinterStore
             var moonraker = new MoonrakerClient(printer, evt => _post(() => Handle(evt, printer.Serial)));
             _clients[printer.Serial] = moonraker;
             moonraker.Start();
+            RaiseUpdated();
+            return;
+        }
+        if (printer.Kind == PrinterKind.Prusa)
+        {
+            var prusa = new PrusaLinkClient(printer, evt => _post(() => Handle(evt, printer.Serial)));
+            _clients[printer.Serial] = prusa;
+            prusa.Start();
             RaiseUpdated();
             return;
         }

@@ -65,6 +65,7 @@ struct AMSSlot: Equatable, Identifiable, Sendable {
 enum PrinterKind: String, Codable, Sendable {
     case bambu
     case klipper
+    case prusa
 }
 
 struct SavedPrinter: Codable, Identifiable, Hashable, Sendable {

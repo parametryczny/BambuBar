@@ -29,9 +29,10 @@ public partial class AddPrinterWindow : Window
             CodeBox.Text = "";
             // The printer kind cannot change once added; lock the selector to the saved type.
             TypeSection.Visibility = Visibility.Collapsed;
-            if (editing.Kind == PrinterKind.Klipper)
+            if (editing.Kind != PrinterKind.Bambu)
             {
-                KlipperRadio.IsChecked = true;
+                if (editing.Kind == PrinterKind.Klipper) KlipperRadio.IsChecked = true;
+                else PrusaRadio.IsChecked = true;
                 PortBox.Text = editing.Port?.ToString() ?? "";
                 ApiKeyBox.Text = editing.ApiKey ?? "";
             }
@@ -42,6 +43,7 @@ public partial class AddPrinterWindow : Window
 
         BambuRadio.Checked += (_, _) => ApplyKind();
         KlipperRadio.Checked += (_, _) => ApplyKind();
+        PrusaRadio.Checked += (_, _) => ApplyKind();
         ScanButton.Click += (_, _) => _store.Scan();
         ImportButton.Click += (_, _) => ImportFromStudio();
         SaveButton.Click += (_, _) => Save();
@@ -66,7 +68,7 @@ public partial class AddPrinterWindow : Window
         CodeLabel.Text = AppSettings.Text("Kod dostępu (Access Code / PIN)", "Access Code / PIN");
         BambuRadio.Content = AppSettings.Text("Bambu Lab", "Bambu Lab");
         KlipperRadio.Content = AppSettings.Text("Klipper (Moonraker)", "Klipper (Moonraker)");
-        PortLabel.Text = AppSettings.Text("Port Moonraker (domyślnie 7125)", "Moonraker port (default 7125)");
+        PrusaRadio.Content = AppSettings.Text("Prusa (PrusaLink)", "Prusa (PrusaLink)");
         ApiKeyLabel.Text = AppSettings.Text("Klucz API (opcjonalnie)", "API key (optional)");
         CancelButton.Content = AppSettings.Text("Anuluj", "Cancel");
         SaveButton.Content = _editing is null ? AppSettings.Text("Dodaj", "Add") : AppSettings.Text("Zapisz", "Save");
@@ -75,20 +77,29 @@ public partial class AddPrinterWindow : Window
     }
 
     private bool IsKlipper => KlipperRadio.IsChecked == true;
+    private bool IsPrusa => PrusaRadio.IsChecked == true;
+    // Klipper and Prusa both connect over HTTP with host/port/API key.
+    private bool UsesHostFields => IsKlipper || IsPrusa;
 
-    /// <summary>Shows only the fields relevant to the selected printer kind. Klipper needs a host,
-    /// an optional port and API key; Bambu needs discovery, serial and access code.</summary>
+    /// <summary>Shows only the fields relevant to the selected printer kind. Klipper/Prusa need a
+    /// host, optional port and API key; Bambu needs discovery, serial and access code.</summary>
     private void ApplyKind()
     {
-        bool klipper = IsKlipper;
-        DiscoverySection.Visibility = (klipper || _editing is not null) ? Visibility.Collapsed : Visibility.Visible;
-        SerialLabel.Visibility = SerialBox.Visibility = klipper ? Visibility.Collapsed : Visibility.Visible;
-        CodeLabel.Visibility = CodeBox.Visibility = klipper ? Visibility.Collapsed : Visibility.Visible;
-        PortLabel.Visibility = PortBox.Visibility = klipper ? Visibility.Visible : Visibility.Collapsed;
-        ApiKeyLabel.Visibility = ApiKeyBox.Visibility = klipper ? Visibility.Visible : Visibility.Collapsed;
-        HostLabel.Text = klipper
+        bool hostBased = UsesHostFields;
+        DiscoverySection.Visibility = (hostBased || _editing is not null) ? Visibility.Collapsed : Visibility.Visible;
+        SerialLabel.Visibility = SerialBox.Visibility = hostBased ? Visibility.Collapsed : Visibility.Visible;
+        CodeLabel.Visibility = CodeBox.Visibility = hostBased ? Visibility.Collapsed : Visibility.Visible;
+        PortLabel.Visibility = PortBox.Visibility = hostBased ? Visibility.Visible : Visibility.Collapsed;
+        ApiKeyLabel.Visibility = ApiKeyBox.Visibility = hostBased ? Visibility.Visible : Visibility.Collapsed;
+        HostLabel.Text = hostBased
             ? AppSettings.Text("Adres IP / nazwa hosta", "IP address / host name")
             : AppSettings.Text("Adres IP", "IP address");
+        PortLabel.Text = IsPrusa
+            ? AppSettings.Text("Port PrusaLink (domyślnie 80)", "PrusaLink port (default 80)")
+            : AppSettings.Text("Port Moonraker (domyślnie 7125)", "Moonraker port (default 7125)");
+        ApiKeyLabel.Text = IsPrusa
+            ? AppSettings.Text("Klucz API PrusaLink", "PrusaLink API key")
+            : AppSettings.Text("Klucz API (opcjonalnie)", "API key (optional)");
     }
 
     private void OnStoreUpdated(object? sender, EventArgs e) => Dispatcher.Invoke(RefreshDetected);
@@ -137,7 +148,7 @@ public partial class AddPrinterWindow : Window
     {
         try
         {
-            if (IsKlipper)
+            if (UsesHostFields)
             {
                 int? port = null;
                 var portText = PortBox.Text.Trim();
@@ -150,7 +161,8 @@ public partial class AddPrinterWindow : Window
                 // Editing may change the host, which changes the derived serial; drop the old entry first.
                 if (_editing is not null && _editing.Host != HostBox.Text.Trim())
                     _store.Remove(_editing);
-                _store.AddKlipper(NameBox.Text, HostBox.Text, port, ApiKeyBox.Text);
+                if (IsPrusa) _store.AddPrusa(NameBox.Text, HostBox.Text, port, ApiKeyBox.Text);
+                else _store.AddKlipper(NameBox.Text, HostBox.Text, port, ApiKeyBox.Text);
             }
             else if (_editing is not null)
                 _store.Update(_editing.Serial, NameBox.Text, SerialBox.Text, HostBox.Text, CodeBox.Text);
@@ -160,7 +172,8 @@ public partial class AddPrinterWindow : Window
             // The tray-pin checkbox is only shown when editing, so the final serial is known here.
             if (_editing is not null)
             {
-                var finalSerial = IsKlipper ? $"klipper-{HostBox.Text.Trim()}" : SerialBox.Text.Trim();
+                var host = HostBox.Text.Trim();
+                var finalSerial = IsPrusa ? $"prusa-{host}" : IsKlipper ? $"klipper-{host}" : SerialBox.Text.Trim();
                 TrayProgressPreference.SetEnabled(ProgressCheck.IsChecked == true, finalSerial);
             }
             Close();

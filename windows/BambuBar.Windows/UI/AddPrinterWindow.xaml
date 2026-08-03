@@ -126,6 +126,7 @@
                     <StackPanel Orientation="Horizontal">
                         <RadioButton x:Name="BambuRadio" GroupName="Kind" IsChecked="True"/>
                         <RadioButton x:Name="KlipperRadio" GroupName="Kind"/>
+                        <RadioButton x:Name="PrusaRadio" GroupName="Kind"/>
                     </StackPanel>
                 </Border>
 
