@@ -34,8 +34,19 @@ final class AppSettings: ObservableObject {
 
     private let defaults = BambuDefaults.shared
 
+    /// System language on first launch: Polish only if the OS preference is Polish, else English —
+    /// matching the Windows side, where the default follows CurrentUICulture.
+    private static func detectedLanguage() -> AppLanguage {
+        let code = Locale.preferredLanguages.first?.prefix(2).lowercased()
+        return code == "pl" ? .pl : .en
+    }
+
     private init() {
-        language = AppLanguage(rawValue: defaults.string(forKey: "app-language") ?? "pl") ?? .pl
+        let resolvedLanguage = defaults.string(forKey: "app-language").flatMap(AppLanguage.init(rawValue:)) ?? Self.detectedLanguage()
+        // didSet doesn't fire during init, so persist the resolved language now — otherwise other
+        // readers (e.g. UpdateService) that read the raw default would fall back to a different value.
+        defaults.set(resolvedLanguage.rawValue, forKey: "app-language")
+        language = resolvedLanguage
         theme = AppTheme(rawValue: defaults.string(forKey: "app-theme") ?? "dark") ?? .dark
         notifyFinished = defaults.object(forKey: "notify-finished") as? Bool ?? true
         notifyError = defaults.object(forKey: "notify-error") as? Bool ?? true
