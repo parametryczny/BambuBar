@@ -11,6 +11,9 @@ public partial class AddPrinterWindow : Window
 {
     private readonly PrinterStore _store;
     private readonly SavedPrinter? _editing;
+    // True while RefreshDetected re-selects the previously selected row after a rescan, so the
+    // programmatic re-selection doesn't overwrite fields the user is currently editing.
+    private bool _restoringSelection;
 
     public AddPrinterWindow(PrinterStore store, SavedPrinter? editing = null)
     {
@@ -115,12 +118,17 @@ public partial class AddPrinterWindow : Window
             ? AppSettings.Text("Skanowanie…", "Scanning…")
             : AppSettings.Text($"Wykryte drukarki ({_store.Discovered.Count})", $"Detected printers ({_store.Discovered.Count})");
         if (selectedSerial is not null)
+        {
+            _restoringSelection = true;
             foreach (DiscoveredItem item in DetectedList.Items)
                 if (item.Printer.Serial == selectedSerial) { DetectedList.SelectedItem = item; break; }
+            _restoringSelection = false;
+        }
     }
 
     private void OnDetectedSelected(object? sender, SelectionChangedEventArgs e)
     {
+        if (_restoringSelection) return;   // a rescan re-selecting the row must not clobber edits
         if (DetectedList.SelectedItem is DiscoveredItem item)
         {
             NameBox.Text = item.Printer.Name;

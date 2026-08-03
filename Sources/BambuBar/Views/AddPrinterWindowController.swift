@@ -225,6 +225,10 @@ final class AddPrinterWindowController: NSWindowController {
         }
         let results = store.discovered
         guard results != popupPrinters else { return }
+        // Preserve the user's current pick across a rescan so re-populating the list doesn't
+        // silently reset the fields to the first result while they're typing.
+        let previouslySelected = popupPrinters.indices.contains(printerPopup.indexOfSelectedItem)
+            ? popupPrinters[printerPopup.indexOfSelectedItem].serial : nil
         popupPrinters = results
         printerPopup.removeAllItems()
         if results.isEmpty {
@@ -234,8 +238,15 @@ final class AddPrinterWindowController: NSWindowController {
             return
         }
         printerPopup.addItems(withTitles: results.map { "\($0.name) — \($0.host)" })
-        printerPopup.selectItem(at: 0)
-        fill(with: results[0])
+        if let previouslySelected, let index = results.firstIndex(where: { $0.serial == previouslySelected }) {
+            printerPopup.selectItem(at: index)   // keep the pick; don't overwrite typed-in fields
+        } else {
+            printerPopup.selectItem(at: 0)
+            // Only auto-fill when the fields are still empty, i.e. the user hasn't started editing.
+            if nameField.stringValue.isEmpty, hostField.stringValue.isEmpty, serialField.stringValue.isEmpty {
+                fill(with: results[0])
+            }
+        }
     }
 
     @objc private func selectedPrinterChanged() {

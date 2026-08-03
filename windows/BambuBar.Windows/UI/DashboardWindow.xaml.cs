@@ -104,7 +104,9 @@ public partial class DashboardWindow : Window
         catch { /* older Windows without these attributes — plain window is fine */ }
     }
 
-    public void RefreshLanguage() { _renderedSerials = new(); Rebuild(); }
+    // Cards (and their cached "…" menus) are built in the target language, so recreate them all on
+    // a language switch rather than reusing the old-language instances.
+    public void RefreshLanguage() { _views.Clear(); _renderedSerials = new(); Rebuild(); }
 
     private void OnStoreUpdated(object? sender, EventArgs e) => Dispatcher.Invoke(Rebuild);
 

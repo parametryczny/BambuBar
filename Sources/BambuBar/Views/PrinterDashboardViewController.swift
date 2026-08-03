@@ -210,6 +210,9 @@ final class PrinterDashboardViewController: NSViewController {
         }
 
         let desiredSerials = store.printers.map(\.serial)
+        // Drop expansion state for printers that no longer exist, so a removed-while-expanded row
+        // doesn't keep inflating the popover height.
+        expandedCompactSerials.formIntersection(desiredSerials)
         if desiredSerials != renderedSerials || renderedCompactMode != useCompactMode {
             detachCardRows()
             if renderedCompactMode != useCompactMode {
