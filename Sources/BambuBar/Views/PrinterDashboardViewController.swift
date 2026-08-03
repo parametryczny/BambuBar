@@ -25,6 +25,8 @@ final class PrinterDashboardViewController: NSViewController {
     private var timerSubscription: AnyCancellable?
     private var cardsBySerial: [String: PrinterCardView] = [:]
     private var compactRowsBySerial: [String: CompactPrinterRowView] = [:]
+    private var expandedCardsBySerial: [String: PrinterCardView] = [:]
+    private var expandedCompactSerials: Set<String> = []
     private var renderedSerials: [String] = []
     private var renderedCompactMode: Bool?
     private var refreshWorkItem: DispatchWorkItem?
@@ -145,11 +147,12 @@ final class PrinterDashboardViewController: NSViewController {
         let printerCount = store.printers.count
         let insets: CGFloat = 12                 // cardsStack top + bottom edge insets
         let chrome: CGFloat = 12 + 36 + 6 + 8    // view top + header + gap + scroll bottom inset
-        let content: CGFloat
+        var content: CGFloat
         if printerCount == 0 {
             content = 120 + insets
         } else if compact {
             content = CGFloat(printerCount) * 31 + CGFloat(printerCount - 1) * 3 + insets
+            content += CGFloat(expandedCompactSerials.count) * (174 + 3)   // full card beneath each expanded row
         } else {
             let rows = Int(ceil(Double(printerCount) / Double(max(1, columns))))
             content = CGFloat(rows) * 174 + CGFloat(max(0, rows - 1)) * 8 + insets
@@ -212,50 +215,37 @@ final class PrinterDashboardViewController: NSViewController {
             if renderedCompactMode != useCompactMode {
                 cardsBySerial.removeAll()
                 compactRowsBySerial.removeAll()
+                expandedCardsBySerial.removeAll()
             }
             renderedSerials = desiredSerials
             renderedCompactMode = useCompactMode
 
             if useCompactMode {
                 compactRowsBySerial = compactRowsBySerial.filter { desiredSerials.contains($0.key) }
+                expandedCardsBySerial = expandedCardsBySerial.filter { desiredSerials.contains($0.key) }
+                let contentWidth = panelWidth - 24
                 for printer in store.printers {
                     let row = compactRowsBySerial[printer.serial] ?? CompactPrinterRowView(
                         printer: printer,
                         onMove: { [weak self] sourceSerial, targetSerial, insertAfter in
                             self?.store.movePrinter(serial: sourceSerial, relativeTo: targetSerial, insertAfter: insertAfter)
-                        }
+                        },
+                        onSelect: { [weak self] in self?.toggleCompactExpansion(printer.serial) }
                     )
                     compactRowsBySerial[printer.serial] = row
                     cardsStack.addArrangedSubview(row)
+                    if expandedCompactSerials.contains(printer.serial) {
+                        let card = expandedCardsBySerial[printer.serial] ?? makeCard(for: printer)
+                        expandedCardsBySerial[printer.serial] = card
+                        card.setLayoutWidth(contentWidth)
+                        cardsStack.addArrangedSubview(card)
+                    }
                 }
             } else {
                 cardsBySerial = cardsBySerial.filter { desiredSerials.contains($0.key) }
                 var cards: [PrinterCardView] = []
                 for printer in store.printers {
-                    let card = cardsBySerial[printer.serial] ?? PrinterCardView(
-                    printer: printer,
-                    onEdit: { [weak self] in
-                        guard let self, let current = self.store.printers.first(where: { $0.serial == printer.serial }) else { return }
-                        self.onEdit(current)
-                    },
-                    onReconnect: { [weak self] in
-                        guard let self, let current = self.store.printers.first(where: { $0.serial == printer.serial }) else { return }
-                        self.onReconnect(current)
-                    },
-                    onOpenCamera: { [weak self] in self?.openBambuStudio(camera: true) },
-                    onOpenSlicer: { url in SlicerLauncher.open(url) },
-                    onCopyIP: { [weak self] in
-                        guard let self, let host = self.store.printers.first(where: { $0.serial == printer.serial })?.host else { return }
-                        self.copyIP(host)
-                    },
-                    onRemove: { [weak self] in
-                        guard let self, let current = self.store.printers.first(where: { $0.serial == printer.serial }) else { return }
-                        self.confirmRemove(current)
-                    },
-                    onMove: { [weak self] sourceSerial, targetSerial, insertAfter in
-                        self?.store.movePrinter(serial: sourceSerial, relativeTo: targetSerial, insertAfter: insertAfter)
-                    }
-                )
+                    let card = cardsBySerial[printer.serial] ?? makeCard(for: printer)
                     cardsBySerial[printer.serial] = card
                     cards.append(card)
                 }
@@ -278,6 +268,7 @@ final class PrinterDashboardViewController: NSViewController {
             let message = store.connectionMessages[printer.serial]
             if useCompactMode {
                 compactRowsBySerial[printer.serial]?.update(printer: printer, telemetry: telemetry, message: message, settings: settings)
+                expandedCardsBySerial[printer.serial]?.update(printer: printer, telemetry: telemetry, message: message, settings: settings)
             } else {
                 cardsBySerial[printer.serial]?.update(printer: printer, telemetry: telemetry, message: message, settings: settings)
             }
@@ -381,6 +372,41 @@ final class PrinterDashboardViewController: NSViewController {
         renderedCompactMode = nil
         refreshDashboard()
     }
+
+    private func makeCard(for printer: SavedPrinter) -> PrinterCardView {
+        PrinterCardView(
+            printer: printer,
+            onEdit: { [weak self] in
+                guard let self, let current = self.store.printers.first(where: { $0.serial == printer.serial }) else { return }
+                self.onEdit(current)
+            },
+            onReconnect: { [weak self] in
+                guard let self, let current = self.store.printers.first(where: { $0.serial == printer.serial }) else { return }
+                self.onReconnect(current)
+            },
+            onOpenCamera: { [weak self] in self?.openBambuStudio(camera: true) },
+            onOpenSlicer: { url in SlicerLauncher.open(url) },
+            onCopyIP: { [weak self] in
+                guard let self, let host = self.store.printers.first(where: { $0.serial == printer.serial })?.host else { return }
+                self.copyIP(host)
+            },
+            onRemove: { [weak self] in
+                guard let self, let current = self.store.printers.first(where: { $0.serial == printer.serial }) else { return }
+                self.confirmRemove(current)
+            },
+            onMove: { [weak self] sourceSerial, targetSerial, insertAfter in
+                self?.store.movePrinter(serial: sourceSerial, relativeTo: targetSerial, insertAfter: insertAfter)
+            }
+        )
+    }
+
+    /// Toggles whether one printer's full card is shown beneath its compact row (accordion).
+    private func toggleCompactExpansion(_ serial: String) {
+        if expandedCompactSerials.contains(serial) { expandedCompactSerials.remove(serial) }
+        else { expandedCompactSerials.insert(serial) }
+        renderedCompactMode = nil
+        refreshDashboard()
+    }
 }
 
 @MainActor
@@ -392,19 +418,23 @@ private final class CompactPrinterRowView: NSGlassEffectView, NSDraggingSource {
     private let dropIndicatorLayer = CALayer()
     private var dragHandle: PrinterDragHandle?
     private let onMove: (_ sourceSerial: String, _ targetSerial: String, _ insertAfter: Bool) -> Void
+    private let onSelect: (() -> Void)?
 
     init(
         printer: SavedPrinter,
-        onMove: @escaping (_ sourceSerial: String, _ targetSerial: String, _ insertAfter: Bool) -> Void
+        onMove: @escaping (_ sourceSerial: String, _ targetSerial: String, _ insertAfter: Bool) -> Void,
+        onSelect: (() -> Void)? = nil
     ) {
         serial = printer.serial
         self.onMove = onMove
+        self.onSelect = onSelect
         super.init(frame: .zero)
 
         style = .regular
         cornerRadius = 10
         tintColor = .clear
         registerForDraggedTypes([printerCardPasteboardType])
+        addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(rowClicked)))
         widthAnchor.constraint(equalToConstant: 456).isActive = true
         heightAnchor.constraint(equalToConstant: 31).isActive = true
 
@@ -445,6 +475,8 @@ private final class CompactPrinterRowView: NSGlassEffectView, NSDraggingSource {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    @objc private func rowClicked() { onSelect?() }
 
     override func layout() {
         super.layout()
