@@ -120,6 +120,12 @@ public static class AppSettings
         set => Defaults.SetBool("dashboard-compact-mode", value);
     }
 
+    public static bool CompactModeChosen
+    {
+        get => Defaults.GetBool("dashboard-compact-mode-set");
+        set => Defaults.SetBool("dashboard-compact-mode-set", value);
+    }
+
     public static bool NotifyPrintFinished
     {
         get => Defaults.GetBool("notifications-print-finished", true);

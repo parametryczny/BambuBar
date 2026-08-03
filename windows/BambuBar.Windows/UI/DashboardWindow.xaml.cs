@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using BambuBar.Models;
 using BambuBar.Services;
 
@@ -23,6 +24,7 @@ public partial class DashboardWindow : Window
         SourceInitialized += (_, _) => ApplyModernChrome();
         ScanButton.Click += (_, _) => _store.Scan();
         AddButton.Click += (_, _) => OpenAddWindow();
+        CompactButton.Click += (_, _) => ToggleCompact();
         _store.Updated += OnStoreUpdated;
         Closed += (_, _) => _store.Updated -= OnStoreUpdated;
         // Popover behaviour: dismiss when the user clicks away, like the macOS menu-bar panel —
@@ -112,12 +114,20 @@ public partial class DashboardWindow : Window
         window.ShowDialog();
     }
 
-    private readonly Dictionary<string, PrinterCard> _cards = new();
+    private readonly Dictionary<string, ICardView> _views = new();
     private List<string> _renderedSerials = new();
+    private bool? _renderedCompact;
 
-    // Reconciles the card list against the printers, then updates each card's values in place.
-    // Cards are only rebuilt when the printer set/order changes — telemetry updates (~every 2s)
-    // just mutate existing controls, so hovering/clicking the "…" menu stays responsive.
+    // Full view fits up to 8 printers; above 8 defaults to a compact one-line list. A manual
+    // toggle overrides and is remembered.
+    private bool UseCompactMode()
+    {
+        if (_store.Printers.Count < 4) return false;
+        return AppSettings.CompactModeChosen ? AppSettings.CompactMode : _store.Printers.Count > 8;
+    }
+
+    // Rebuilds the list only when the printer set/order OR the compact mode changes; telemetry
+    // updates just mutate existing views, so the panel stays responsive.
     private void Rebuild()
     {
         bool pl = AppSettings.Polish;
@@ -126,43 +136,76 @@ public partial class DashboardWindow : Window
             : (_store.GlobalMessage ?? AppSettings.Text($"{_store.Printers.Count} drukarek • {_store.ActivePrintCount} drukuje",
                                                         $"{_store.Printers.Count} printers • {_store.ActivePrintCount} printing"));
 
+        bool compact = UseCompactMode();
+        CompactButton.Visibility = _store.Printers.Count >= 4 ? Visibility.Visible : Visibility.Collapsed;
+        CompactButton.Content = compact ? AppSettings.Text("Rozwiń", "Expand") : AppSettings.Text("Zwiń", "Collapse");
+
         var serials = _store.Printers.Select(p => p.Serial).ToList();
-        if (!serials.SequenceEqual(_renderedSerials))
+        if (!serials.SequenceEqual(_renderedSerials) || _renderedCompact != compact)
         {
             HideCardMenu();
             CardsPanel.Children.Clear();
             if (_store.Printers.Count == 0)
             {
-                _cards.Clear();
+                _views.Clear();
                 CardsPanel.Children.Add(new TextBlock
                 {
                     Text = AppSettings.Text("Brak drukarek. Kliknij +, aby dodać.", "No printers. Click + to add one."),
                     Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9E)),
                     Margin = new Thickness(8)
                 });
-                _renderedSerials = serials;
+                _renderedSerials = serials; _renderedCompact = compact;
+                AdjustHeight(compact, 0);
                 return;
             }
-            var live = new Dictionary<string, PrinterCard>();
+            var live = new Dictionary<string, ICardView>();
             foreach (var printer in _store.Printers)
             {
-                if (!_cards.TryGetValue(printer.Serial, out var card))
-                    card = new PrinterCard(this, printer);
-                live[printer.Serial] = card;
-                CardsPanel.Children.Add(card.Root);
+                _views.TryGetValue(printer.Serial, out var existing);
+                ICardView view = compact
+                    ? (existing as CompactRow) ?? new CompactRow(this, printer)
+                    : (existing as PrinterCard) ?? (ICardView)new PrinterCard(this, printer);
+                live[printer.Serial] = view;
+                CardsPanel.Children.Add(view.Root);
             }
-            _cards.Clear();
-            foreach (var kv in live) _cards[kv.Key] = kv.Value;
-            _renderedSerials = serials;
+            _views.Clear();
+            foreach (var kv in live) _views[kv.Key] = kv.Value;
+            _renderedSerials = serials; _renderedCompact = compact;
+            AdjustHeight(compact, _store.Printers.Count);
         }
 
         foreach (var printer in _store.Printers)
-            if (_cards.TryGetValue(printer.Serial, out var card))
+            if (_views.TryGetValue(printer.Serial, out var view))
             {
                 var t = _store.Telemetry.TryGetValue(printer.Serial, out var tel) ? tel : new PrinterTelemetry();
                 _store.ConnectionMessages.TryGetValue(printer.Serial, out var msg);
-                card.Update(printer, t, msg, pl);
+                view.Update(printer, t, msg, pl);
             }
+    }
+
+    private void ToggleCompact()
+    {
+        AppSettings.CompactMode = !UseCompactMode();
+        AppSettings.CompactModeChosen = true;
+        Rebuild();
+    }
+
+    private void AdjustHeight(bool compact, int count)
+    {
+        double content = count == 0 ? 60 : compact ? count * 44 : Math.Ceiling(count / 2.0) * 182;
+        Height = Math.Min(820, 84 + content);
+        if (IsVisible)
+        {
+            var area = SystemParameters.WorkArea;
+            Left = area.Right - Width - 8;
+            Top = area.Bottom - Height - 8;
+        }
+    }
+
+    private interface ICardView
+    {
+        Border Root { get; }
+        void Update(SavedPrinter printer, PrinterTelemetry t, string? message, bool pl);
     }
 
     private void ToggleCardMenu(FrameworkElement anchor, FrameworkElement menu)
@@ -173,7 +216,7 @@ public partial class DashboardWindow : Window
 
     /// <summary>One printer card whose visuals are built once and updated in place, so the panel
     /// doesn't churn on every telemetry tick.</summary>
-    private sealed class PrinterCard
+    private sealed class PrinterCard : ICardView
     {
         public Border Root { get; }
         public string Serial { get; }
@@ -184,7 +227,7 @@ public partial class DashboardWindow : Window
         private readonly ProgressBar _bar;
         private readonly WrapPanel _ams;
 
-        public PrinterCard(DashboardWindow owner, SavedPrinter printer)
+        public PrinterCard(DashboardWindow owner, SavedPrinter printer, double width = 232)
         {
             _owner = owner;
             Serial = printer.Serial;
@@ -257,7 +300,7 @@ public partial class DashboardWindow : Window
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(13),
                 Margin = new Thickness(7),
-                Width = 232,
+                Width = width,
                 Child = stack
             };
 
@@ -302,6 +345,115 @@ public partial class DashboardWindow : Window
 
             if (string.IsNullOrEmpty(message)) _message.Visibility = Visibility.Collapsed;
             else { _message.Text = message; _message.Visibility = Visibility.Visible; }
+        }
+    }
+
+    /// <summary>Compact one-line row for the collapsed list. Clicking it expands that printer into a
+    /// full-width bento card in place (accordion); clicking again collapses.</summary>
+    private sealed class CompactRow : ICardView
+    {
+        public Border Root { get; }
+        public string Serial { get; }
+        private readonly DashboardWindow _owner;
+        private readonly StackPanel _stack;
+        private readonly Ellipse _dot;
+        private readonly TextBlock _name, _status, _percent, _chevron;
+        private Point _dragStart;
+        private PrinterCard? _full;
+        private SavedPrinter _printer;
+        private PrinterTelemetry _telemetry = new();
+        private string? _message;
+        private bool _pl;
+
+        public CompactRow(DashboardWindow owner, SavedPrinter printer)
+        {
+            _owner = owner;
+            Serial = printer.Serial;
+            _printer = printer;
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var grip = new TextBlock { Text = "⠿", FontSize = 12, Foreground = Muted(), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.SizeAll };
+            grip.PreviewMouseLeftButtonDown += (_, e) => _dragStart = e.GetPosition(null);
+            grip.MouseMove += (_, e) =>
+            {
+                if (e.LeftButton != MouseButtonState.Pressed) return;
+                var p = e.GetPosition(null);
+                if (Math.Abs(p.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                    Math.Abs(p.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+                DragDrop.DoDragDrop(Root, Serial, DragDropEffects.Move);
+            };
+            Grid.SetColumn(grip, 0); grid.Children.Add(grip);
+
+            _dot = new Ellipse { Width = 9, Height = 9, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(_dot, 1); grid.Children.Add(_dot);
+
+            _name = new TextBlock { FontWeight = FontWeights.SemiBold, FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(_name, 2); grid.Children.Add(_name);
+
+            _status = new TextBlock { FontSize = 11, Foreground = Muted(), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 8, 0) };
+            Grid.SetColumn(_status, 3); grid.Children.Add(_status);
+
+            _percent = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(_percent, 4); grid.Children.Add(_percent);
+
+            _chevron = new TextBlock { Text = "›", FontSize = 13, Foreground = Muted(), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(_chevron, 5); grid.Children.Add(_chevron);
+
+            var line = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(10, 8, 10, 8), Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)), Cursor = Cursors.Hand, Child = grid };
+            line.MouseLeftButtonUp += (_, e) => { if (!ReferenceEquals(e.OriginalSource, grip)) ToggleExpand(); };
+
+            _stack = new StackPanel();
+            _stack.Children.Add(line);
+
+            Root = new Border { Margin = new Thickness(4, 2, 4, 2), Width = 500, Child = _stack, AllowDrop = true };
+            Root.DragOver += (_, e) =>
+            {
+                e.Effects = e.Data.GetDataPresent(DataFormats.StringFormat) ? DragDropEffects.Move : DragDropEffects.None;
+                e.Handled = true;
+            };
+            Root.Drop += (_, e) =>
+            {
+                if (e.Data.GetData(DataFormats.StringFormat) is not string sourceSerial || sourceSerial == Serial) return;
+                bool insertAfter = e.GetPosition(Root).Y > Root.ActualHeight / 2;
+                _owner._store.MovePrinter(sourceSerial, Serial, insertAfter);
+            };
+        }
+
+        private void ToggleExpand()
+        {
+            if (_full is null)
+            {
+                _full = new PrinterCard(_owner, _printer, 484);
+                _full.Root.Margin = new Thickness(0, 4, 0, 2);
+                _stack.Children.Add(_full.Root);
+            }
+            bool show = _full.Root.Visibility != Visibility.Visible;
+            _full.Root.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            _chevron.Text = show ? "⌄" : "›";
+            if (show) _full.Update(_printer, _telemetry, _message, _pl);
+        }
+
+        public void Update(SavedPrinter printer, PrinterTelemetry t, string? message, bool pl)
+        {
+            _printer = printer; _telemetry = t; _message = message; _pl = pl;
+            _dot.Fill = new SolidColorBrush(ParseHex(t.State.AccentHex() + "FF"));
+            _name.Text = printer.Name;
+            bool printing = t.State is PrinterState.Printing or PrinterState.Paused;
+            string job = string.IsNullOrEmpty(t.JobName) ? "" : t.JobName!;
+            _status.Text = printing
+                ? (string.IsNullOrEmpty(job) ? FormatEta(t.RemainingMinutes) : $"{FormatEta(t.RemainingMinutes)} • {job}")
+                : t.State.Label(pl);
+            _percent.Text = printing ? $"{t.Progress}%" : "";
+
+            if (_full is not null && _full.Root.Visibility == Visibility.Visible)
+                _full.Update(printer, t, message, pl);
         }
     }
 

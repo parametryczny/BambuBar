@@ -30,6 +30,7 @@ final class PrinterDashboardViewController: NSViewController {
     private var refreshWorkItem: DispatchWorkItem?
     private let dashboardDefaults = BambuDefaults.shared
     private var prefersCompactMode: Bool
+    private var compactModeChosen: Bool
 
     init(
         store: PrinterStore,
@@ -44,6 +45,7 @@ final class PrinterDashboardViewController: NSViewController {
         self.onReconnect = onReconnect
         self.onPreferredContentSize = onPreferredContentSize
         prefersCompactMode = BambuDefaults.shared.bool(forKey: "dashboard-compact-mode")
+        compactModeChosen = BambuDefaults.shared.bool(forKey: "dashboard-compact-mode-set")
         super.init(nibName: nil, bundle: nil)
         subscription = store.objectWillChange.sink { [weak self] _ in
             self?.scheduleRefresh()
@@ -152,7 +154,8 @@ final class PrinterDashboardViewController: NSViewController {
             let rows = Int(ceil(Double(printerCount) / Double(max(1, columns))))
             content = CGFloat(rows) * 174 + CGFloat(max(0, rows - 1)) * 8 + insets
         }
-        return min(650, chrome + content)
+        // Tall enough for up to 8 full cards (2 columns → 4 rows) before scrolling kicks in.
+        return min(820, chrome + content)
     }
 
     private func scheduleRefresh() {
@@ -170,7 +173,8 @@ final class PrinterDashboardViewController: NSViewController {
             ? "\(store.printers.count) drukarek • \(online) online"
             : "\(store.printers.count) printers • \(online) online"
         let supportsCompactMode = store.printers.count >= 4
-        let useCompactMode = supportsCompactMode && prefersCompactMode
+        // Full view fits up to 8 printers; above 8 default to compact. A manual toggle overrides.
+        let useCompactMode = supportsCompactMode && (compactModeChosen ? prefersCompactMode : store.printers.count > 8)
         let expandedColumnCount = !useCompactMode && store.printers.count >= 9 ? 3 : 2
         let panelWidth: CGFloat = expandedColumnCount == 3 ? 720 : 480
         onPreferredContentSize(NSSize(
@@ -368,8 +372,12 @@ final class PrinterDashboardViewController: NSViewController {
     @objc private func resetPressed() { store.resetCompletedStatuses() }
     @objc private func toggleCompactMode() {
         guard store.printers.count >= 4 else { return }
-        prefersCompactMode.toggle()
+        // Toggle relative to what's shown now, and remember that the user made an explicit choice.
+        let currentlyCompact = compactModeChosen ? prefersCompactMode : store.printers.count > 8
+        prefersCompactMode = !currentlyCompact
+        compactModeChosen = true
         dashboardDefaults.set(prefersCompactMode, forKey: "dashboard-compact-mode")
+        dashboardDefaults.set(true, forKey: "dashboard-compact-mode-set")
         renderedCompactMode = nil
         refreshDashboard()
     }
