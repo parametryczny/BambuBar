@@ -30,7 +30,11 @@ public sealed class TrayIcon : IDisposable
         _notifyIcon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ToggleDashboard(); };
         _notifyIcon.BalloonTipClicked += (_, _) => OpenPendingUpdate();
         _notifyIcon.ContextMenuStrip = BuildMenu();
-        _store.Updated += (_, _) => { RefreshTooltip(); UpdateProgressIcons(); };
+        _store.Updated += (_, _) =>
+        {
+            try { RefreshTooltip(); UpdateProgressIcons(); }
+            catch (Exception ex) { BambuBar.App.LogError("TrayUpdated", ex); }
+        };
         RefreshTooltip();
         UpdateProgressIcons();
         _ = RunUpdateChecksAsync();
@@ -42,17 +46,21 @@ public sealed class TrayIcon : IDisposable
     {
         while (true)
         {
-            var release = await UpdateChecker.CheckAsync();
-            if (release is not null)
+            try
             {
-                UpdateChecker.MarkNotified(release.Version);
-                _pendingUpdateUrl = release.PageUrl;
-                ShowNotification(
-                    AppSettings.Text("Dostępna aktualizacja BambuBar", "BambuBar update available"),
-                    AppSettings.Text($"Wersja {release.Version} jest do pobrania. Kliknij, aby otworzyć stronę.",
-                                     $"Version {release.Version} is available. Click to open the page."),
-                    null);
+                var release = await UpdateChecker.CheckAsync();
+                if (release is not null)
+                {
+                    UpdateChecker.MarkNotified(release.Version);
+                    _pendingUpdateUrl = release.PageUrl;
+                    ShowNotification(
+                        AppSettings.Text("Dostępna aktualizacja BambuBar", "BambuBar update available"),
+                        AppSettings.Text($"Wersja {release.Version} jest do pobrania. Kliknij, aby otworzyć stronę.",
+                                         $"Version {release.Version} is available. Click to open the page."),
+                        null);
+                }
             }
+            catch (Exception ex) { BambuBar.App.LogError("UpdateCheck", ex); }
             await Task.Delay(TimeSpan.FromHours(6));
         }
     }
