@@ -584,7 +584,7 @@ public partial class DashboardWindow : Window
             if (Current() is not { } p) return;
             var confirm = MessageBox.Show(this,
                 AppSettings.Text($"Usunąć drukarkę {p.Name}?", $"Remove printer {p.Name}?"),
-                "BambuBar", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                "PrismBar", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirm == MessageBoxResult.Yes) _store.Remove(p);
         });
 

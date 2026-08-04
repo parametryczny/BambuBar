@@ -11,7 +11,7 @@
     <RootNamespace>BambuBar</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Version>0.4.1</Version>
-    <Product>BambuBar</Product>
+    <Product>PrismBar</Product>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 

@@ -8,13 +8,13 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resour
 zsh scripts/build-app.sh local
 zsh scripts/build-app.sh keychain
 
-LOCAL_ZIP="dist/BambuBar-$VERSION-macOS-Local.zip"
-KEYCHAIN_ZIP="dist/BambuBar-$VERSION-macOS-Keychain.zip"
+LOCAL_ZIP="dist/PrismBar-$VERSION-macOS-Local.zip"
+KEYCHAIN_ZIP="dist/PrismBar-$VERSION-macOS-Keychain.zip"
 rm -f "$LOCAL_ZIP" "$KEYCHAIN_ZIP"
 (
     cd dist
-    /usr/bin/zip -qry "${LOCAL_ZIP:t}" "BambuBar.app" -x '*.DS_Store'
-    /usr/bin/zip -qry "${KEYCHAIN_ZIP:t}" "BambuBar Keychain.app" -x '*.DS_Store'
+    /usr/bin/zip -qry "${LOCAL_ZIP:t}" "PrismBar.app" -x '*.DS_Store'
+    /usr/bin/zip -qry "${KEYCHAIN_ZIP:t}" "PrismBar Keychain.app" -x '*.DS_Store'
 )
 
 echo "Gotowe: $PROJECT_DIR/$LOCAL_ZIP"

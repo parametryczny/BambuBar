@@ -274,8 +274,8 @@ final class AddPrinterWindowController: NSWindowController {
             let alert = NSAlert()
             alert.messageText = AppSettings.shared.text("Zaimportowano drukarki", "Printers imported")
             alert.informativeText = AppSettings.shared.text(
-                "Dodano lub zaktualizowano: \(count). BambuBar będzie używać kodów z lokalnej konfiguracji Bambu Studio.",
-                "Added or updated: \(count). BambuBar will use codes from the local Bambu Studio configuration."
+                "Dodano lub zaktualizowano: \(count). PrismBar będzie używać kodów z lokalnej konfiguracji Bambu Studio.",
+                "Added or updated: \(count). PrismBar will use codes from the local Bambu Studio configuration."
             )
             alert.addButton(withTitle: "OK")
             if let window {

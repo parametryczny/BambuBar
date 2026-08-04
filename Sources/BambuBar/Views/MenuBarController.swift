@@ -79,23 +79,12 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
     private func updateStatusItem() {
         guard let button = statusItem.button else { return }
-        button.image = nil
         button.title = ""
-        let shadow = NSShadow()
-        shadow.shadowColor = NSColor.black.withAlphaComponent(0.7)
-        shadow.shadowBlurRadius = 2
-        shadow.shadowOffset = NSSize(width: 0, height: -1)
-        button.attributedTitle = NSAttributedString(
-            string: "BL",
-            attributes: [
-                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .bold),
-                .foregroundColor: NSColor.white,
-                .shadow: shadow
-            ]
-        )
+        button.image = PrismBarLogo.statusItemImage()
+        button.imagePosition = .imageOnly
         button.toolTip = store.activePrintCount > 0
-            ? AppSettings.shared.text("BambuBar — drukuje: \(store.activePrintCount)", "BambuBar — printing: \(store.activePrintCount)")
-            : "BambuBar"
+            ? AppSettings.shared.text("PrismBar — drukuje: \(store.activePrintCount)", "PrismBar — printing: \(store.activePrintCount)")
+            : "PrismBar"
     }
 
     /// Adds/removes/updates one extra status item per printer pinned to the menu bar, showing its
@@ -218,7 +207,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         menu.addItem(.separator())
 
         menu.addItem(row(icon: "power",
-                         title: settings.text("Zakończ BambuBar", "Quit BambuBar"),
+                         title: settings.text("Zakończ PrismBar", "Quit PrismBar"),
                          accessory: .detail("⌘Q")) {
             NSApplication.shared.terminate(nil)
         })

@@ -1,6 +1,6 @@
-# Historia zmian BambuBar
+# Historia zmian PrismBar
 
-Wszystkie istotne zmiany w aplikacji BambuBar są opisane w tym pliku.
+Wszystkie istotne zmiany w aplikacji PrismBar (dawniej BambuBar) są opisane w tym pliku.
 
 ## 0.4.0 — 2026-08-03
 

@@ -70,7 +70,7 @@ final class PrinterDashboardViewController: NSViewController {
         background.wantsLayer = true
         view = background
 
-        let title = NSTextField(labelWithString: "BambuBar")
+        let title = NSTextField(labelWithString: "PrismBar")
         title.font = .systemFont(ofSize: 17, weight: .semibold)
         summaryLabel.font = .systemFont(ofSize: 11, weight: .regular)
         summaryLabel.textColor = .secondaryLabelColor
@@ -342,7 +342,7 @@ final class PrinterDashboardViewController: NSViewController {
         )
         NSWorkspace.shared.openApplication(at: url, configuration: .init()) { _, _ in
             if camera {
-                NotificationService.post(title: "BambuBar", body: cameraMessage)
+                NotificationService.post(title: "PrismBar", body: cameraMessage)
             }
         }
     }

@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>BambuBar</string>
+	<string>PrismBar</string>
 	<key>CFBundleExecutable</key>
 	<string>BambuBar</string>
 	<key>CFBundleGetInfoString</key>
-	<string>BambuBar by Kamil Grzegorczyk (@parametryczny)</string>
+	<string>PrismBar by Kamil Grzegorczyk (@parametryczny)</string>
 	<key>CFBundleIdentifier</key>
 	<string>pl.bambubar.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>BambuBar</string>
+	<string>PrismBar</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

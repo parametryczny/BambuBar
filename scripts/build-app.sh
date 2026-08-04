@@ -11,12 +11,12 @@ case "$STORAGE_MODE" in
     local)
         # Default build. Keeps the stable bundle id (so the Local Network grant persists) but
         # stores printer access codes in the Keychain instead of plaintext UserDefaults.
-        APP_NAME="BambuBar"
+        APP_NAME="PrismBar"
         BUNDLE_ID="pl.bambubar.app"
         SWIFT_FLAGS=(-Xswiftc -DKEYCHAIN_STORAGE)
         ;;
     keychain)
-        APP_NAME="BambuBar Keychain"
+        APP_NAME="PrismBar Keychain"
         BUNDLE_ID="pl.bambubar.app.keychain"
         SWIFT_FLAGS=(-Xswiftc -DKEYCHAIN_STORAGE)
         ;;

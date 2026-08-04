@@ -1,7 +1,7 @@
 <Window x:Class="BambuBar.UI.AddPrinterWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="BambuBar" Width="430" SizeToContent="Height" MaxHeight="720"
+        Title="PrismBar" Width="430" SizeToContent="Height" MaxHeight="720"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
         AllowsTransparency="False" Background="Transparent"

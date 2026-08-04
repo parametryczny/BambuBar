@@ -143,7 +143,7 @@ public partial class AddPrinterWindow : Window
         try
         {
             int count = _store.ImportFromBambuStudio();
-            MessageBox.Show(this, AppSettings.Text($"Zaimportowano drukarek: {count}", $"Imported printers: {count}"), "BambuBar");
+            MessageBox.Show(this, AppSettings.Text($"Zaimportowano drukarek: {count}", $"Imported printers: {count}"), "PrismBar");
             Close();
         }
         catch (Exception ex)
