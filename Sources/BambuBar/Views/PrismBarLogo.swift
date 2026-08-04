@@ -18,13 +18,25 @@ enum PrismBarLogo {
 
     /// A template image of the mark sized to the menu bar height (menu bar tints it for light/dark).
     static func statusItemImage(height: CGFloat = 18) -> NSImage {
+        let image = drawImage(height: height) { NSColor.black.setFill() }
+        image.isTemplate = true
+        return image
+    }
+
+    /// A solid-colour image of the mark — used where the background is fixed (e.g. the dark panel
+    /// header), so the mark shows in that colour rather than being tinted by the menu bar.
+    static func filledImage(height: CGFloat, color: NSColor) -> NSImage {
+        drawImage(height: height) { color.setFill() }
+    }
+
+    private static func drawImage(height: CGFloat, setFill: @escaping () -> Void) -> NSImage {
         let scale = height / bounds.height
         let size = NSSize(width: bounds.width * scale, height: height)
-        let image = NSImage(size: size, flipped: true) { _ in
+        return NSImage(size: size, flipped: true) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             ctx.scaleBy(x: scale, y: scale)
             ctx.translateBy(x: -bounds.minX, y: -bounds.minY)
-            NSColor.black.setFill()
+            setFill()
             for polygon in polygons {
                 let path = NSBezierPath()
                 path.move(to: polygon[0])
@@ -34,7 +46,5 @@ enum PrismBarLogo {
             }
             return true
         }
-        image.isTemplate = true
-        return image
     }
 }

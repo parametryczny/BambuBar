@@ -74,10 +74,17 @@ final class PrinterDashboardViewController: NSViewController {
         title.font = .systemFont(ofSize: 17, weight: .semibold)
         summaryLabel.font = .systemFont(ofSize: 11, weight: .regular)
         summaryLabel.textColor = .secondaryLabelColor
-        let titleStack = NSStackView(views: [title, summaryLabel])
-        titleStack.orientation = .vertical
-        titleStack.alignment = .leading
-        titleStack.spacing = 1
+        let textStack = NSStackView(views: [title, summaryLabel])
+        textStack.orientation = .vertical
+        textStack.alignment = .leading
+        textStack.spacing = 1
+        let logoView = NSImageView(image: PrismBarLogo.filledImage(height: 24, color: NSColor(white: 0.96, alpha: 1)))
+        logoView.setContentHuggingPriority(.required, for: .horizontal)
+        logoView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        let titleStack = NSStackView(views: [logoView, textStack])
+        titleStack.orientation = .horizontal
+        titleStack.alignment = .centerY
+        titleStack.spacing = 9
 
         let addButton = iconButton("plus", tooltip: "Dodaj drukarkę / Add printer", action: #selector(addPressed))
         let refreshButton = iconButton("arrow.clockwise", tooltip: "Połącz ponownie / Reconnect", action: #selector(refreshPressed))
