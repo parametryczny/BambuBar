@@ -30,7 +30,28 @@ public partial class SettingsWindow : Window
         QuietHoursCheckBox.Click += (_, _) => { QuietHours.Enabled = QuietHoursCheckBox.IsChecked == true; QuietTimesRow.IsEnabled = QuietHoursCheckBox.IsChecked == true; };
         QuietStartBox.LostFocus += (_, _) => SaveQuietTimes();
         QuietEndBox.LostFocus += (_, _) => SaveQuietTimes();
+        SubnetTargetsBox.LostFocus += (_, _) => SaveSubnetTargets();
         CloseButton.Click += (_, _) => Close();
+    }
+
+    private void SaveSubnetTargets()
+    {
+        var input = (SubnetTargetsBox.Text ?? string.Empty).Trim();
+        if (input.Length == 0)
+        {
+            AppSettings.SubnetScanTargets = string.Empty;
+            return;
+        }
+
+        if (BambuBar.Services.SubnetDiscovery.IsValidTargetExpression(input))
+        {
+            AppSettings.SubnetScanTargets = input;
+            SubnetTargetsBox.Text = input;
+        }
+        else
+        {
+            SubnetTargetsBox.Text = AppSettings.SubnetScanTargets;
+        }
     }
 
     private void SaveQuietTimes()
@@ -62,6 +83,10 @@ public partial class SettingsWindow : Window
         LanguageLabel.Text = AppSettings.Text("Język", "Language");
         LanguageButton.Content = AppSettings.Polish ? "Polski" : "English";
         StartupCheckBox.Content = AppSettings.Text("Uruchamiaj z Windows", "Start with Windows");
+        SubnetTargetsLabel.Text = AppSettings.Text("Dodatkowe zakresy do skanowania", "Additional scan ranges");
+        SubnetTargetsHint.Text = AppSettings.Text(
+            "Podane zakresy są skanowane dodatkowo. Przykład: 100.64.10.0/24, 192.168.1.20-192.168.1.60",
+            "Entered ranges are scanned additionally. Example: 100.64.10.0/24, 192.168.1.20-192.168.1.60");
 
         NotificationsHeading.Text = AppSettings.Text("POWIADOMIENIA", "NOTIFICATIONS");
         PrintFinishedCheckBox.Content = AppSettings.Text("Druk zakończony", "Print finished");
@@ -92,6 +117,7 @@ public partial class SettingsWindow : Window
         QuietStartBox.Text = MinutesToText(QuietHours.StartMinutes);
         QuietEndBox.Text = MinutesToText(QuietHours.EndMinutes);
         QuietTimesRow.IsEnabled = QuietHours.Enabled;
+        SubnetTargetsBox.Text = AppSettings.SubnetScanTargets;
     }
 
     private async Task CheckUpdatesAsync()
