@@ -276,6 +276,15 @@ final class PrinterDashboardViewController: NSViewController {
                 cardsBySerial[printer.serial]?.update(printer: printer, telemetry: telemetry, message: message, settings: settings)
             }
         }
+
+        // Correct the popover height from the cards' real laid-out size — cards grow when AMS chips
+        // wrap onto extra rows, which the fixed per-row estimate above can't anticipate.
+        view.layoutSubtreeIfNeeded()
+        let measuredContent = cardsStack.fittingSize.height
+        if measuredContent > 1 {
+            let chromeAndInsets: CGFloat = 12 + 36 + 6 + 8 + 12
+            onPreferredContentSize(NSSize(width: panelWidth, height: min(900, chromeAndInsets + measuredContent)))
+        }
     }
 
     private func detachCardRows() {
@@ -606,7 +615,7 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
     private let bedMetric = CompactMetricView(symbol: "rectangle.and.hand.point.up.left", tooltip: "Bed")
     private let chamberMetric = CompactMetricView(symbol: "house", tooltip: "Chamber")
     private let amsLabel = NSTextField(labelWithString: "")
-    private let amsStack = NSStackView()
+    private let amsChips = WrappingChipsView()
     private var layoutWidthConstraint: NSLayoutConstraint?
     private var dragHandle: PrinterDragHandle?
     private var renderedSlots: [AMSSlot] = []
@@ -646,7 +655,8 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
         cardContent.layer?.insertSublayer(stateEmphasisLayer, at: 0)
         contentView = cardContent
         registerForDraggedTypes([printerCardPasteboardType])
-        heightAnchor.constraint(equalToConstant: 174).isActive = true
+        // Minimum, not fixed: the card grows when AMS chips wrap onto extra rows (multiple AMS units).
+        heightAnchor.constraint(greaterThanOrEqualToConstant: 174).isActive = true
 
         dropIndicatorLayer.backgroundColor = NSColor.systemBlue.cgColor
         dropIndicatorLayer.cornerRadius = 1.5
@@ -716,16 +726,14 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
         amsLabel.alignment = .left
         amsLabel.lineBreakMode = .byTruncatingTail
         amsLabel.widthAnchor.constraint(equalToConstant: 73).isActive = true
-        amsStack.orientation = .horizontal
-        amsStack.alignment = .centerY
-        amsStack.spacing = 2
-        amsStack.wantsLayer = true
-        amsStack.layer?.cornerRadius = 8
-        amsStack.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.055).cgColor
-        amsStack.edgeInsets = NSEdgeInsets(top: 2, left: 2, bottom: 2, right: 2)
-        let amsRow = NSStackView(views: [amsLabel, amsStack, NSView()])
+        amsChips.wantsLayer = true
+        amsChips.layer?.cornerRadius = 8
+        amsChips.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.055).cgColor
+        amsChips.setContentHuggingPriority(.defaultLow, for: .horizontal)   // fill the row so chips wrap
+        amsChips.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let amsRow = NSStackView(views: [amsLabel, amsChips])
         amsRow.orientation = .horizontal
-        amsRow.alignment = .centerY
+        amsRow.alignment = .top
         amsRow.spacing = 5
 
         let stack = NSStackView(views: [header, statusLabel, jobLabel, progressRow, metricsTop, metricsBottom, amsRow])
@@ -895,13 +903,12 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
         amsLabel.stringValue = amsSummary(telemetry)
         amsLabel.textColor = isHumidityHigh(telemetry.amsHumidity) ? .systemOrange : .secondaryLabelColor
 
-        let visibleSlots = Array(telemetry.amsSlots.filter { !$0.isExternal }.prefix(4))
+        // Show every slot (all AMS units + external), wrapping onto extra rows when needed.
+        let visibleSlots = telemetry.amsSlots
         if renderedSlots != visibleSlots {
             renderedSlots = visibleSlots
-            amsStack.arrangedSubviews.forEach { amsStack.removeArrangedSubview($0); $0.removeFromSuperview() }
-            for slot in visibleSlots {
-                amsStack.addArrangedSubview(AMSSlotView(slot: slot))
-            }
+            amsChips.isHidden = visibleSlots.isEmpty
+            amsChips.setChips(visibleSlots.map { AMSSlotView(slot: $0) })
         }
     }
 
@@ -1145,6 +1152,68 @@ private final class BrutalistProgressView: NSView {
         let center = NSRect(x: markerX, y: 0, width: 1, height: bounds.height)
         NSColor.labelColor.setFill()
         center.fill()
+    }
+}
+
+/// A left-to-right flow layout that wraps its chips onto new rows and reports an intrinsic height
+/// derived from its current width — used for the AMS colour dots so many spools (multiple AMS units)
+/// wrap onto extra rows instead of overflowing the card.
+@MainActor
+private final class WrappingChipsView: NSView {
+    var horizontalSpacing: CGFloat = 2
+    var verticalSpacing: CGFloat = 2
+    var contentInsets = NSEdgeInsets(top: 2, left: 2, bottom: 2, right: 2)
+    private var chips: [NSView] = []
+    private var lastLaidOutWidth: CGFloat = -1
+
+    override var isFlipped: Bool { true }
+
+    func setChips(_ views: [NSView]) {
+        chips.forEach { $0.removeFromSuperview() }
+        chips = views
+        for view in views {
+            view.translatesAutoresizingMaskIntoConstraints = true
+            addSubview(view)
+        }
+        invalidateIntrinsicContentSize()
+        needsLayout = true
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        if abs(newSize.width - lastLaidOutWidth) > 0.5 { invalidateIntrinsicContentSize() }
+    }
+
+    override func layout() {
+        super.layout()
+        lastLaidOutWidth = bounds.width
+        _ = arrange(width: bounds.width, apply: true)
+    }
+
+    override var intrinsicContentSize: NSSize {
+        let width = bounds.width > 0 ? bounds.width : 200
+        return NSSize(width: NSView.noIntrinsicMetric, height: arrange(width: width, apply: false))
+    }
+
+    @discardableResult
+    private func arrange(width: CGFloat, apply: Bool) -> CGFloat {
+        guard !chips.isEmpty else { return 0 }
+        let maxX = width - contentInsets.right
+        var x = contentInsets.left
+        var y = contentInsets.top
+        var rowHeight: CGFloat = 0
+        for chip in chips {
+            let size = chip.fittingSize
+            if x > contentInsets.left, x + size.width > maxX {
+                x = contentInsets.left
+                y += rowHeight + verticalSpacing
+                rowHeight = 0
+            }
+            if apply { chip.frame = NSRect(x: x, y: y, width: size.width, height: size.height) }
+            x += size.width + horizontalSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return y + rowHeight + contentInsets.bottom
     }
 }
 
