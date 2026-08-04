@@ -180,10 +180,8 @@ final class PrinterDashboardViewController: NSViewController {
         let useCompactMode = supportsCompactMode && (compactModeChosen ? prefersCompactMode : store.printers.count > 8)
         let expandedColumnCount = !useCompactMode && store.printers.count >= 9 ? 3 : 2
         let panelWidth: CGFloat = expandedColumnCount == 3 ? 720 : 480
-        onPreferredContentSize(NSSize(
-            width: panelWidth,
-            height: preferredPopoverHeight(compact: useCompactMode, columns: expandedColumnCount)
-        ))
+        // The popover size is reported once at the end of render() from the cards' real measured
+        // height — reporting an estimate here too made the popover oscillate between the two values.
         compactButton.isHidden = !supportsCompactMode
         compactButton.title = settings.text(useCompactMode ? "Rozwiń" : "Zwiń", useCompactMode ? "Expand" : "Collapse")
         compactButton.toolTip = settings.text(
@@ -277,15 +275,23 @@ final class PrinterDashboardViewController: NSViewController {
             }
         }
 
-        // Correct the popover height from the cards' real laid-out size — cards grow when AMS chips
-        // wrap onto extra rows, which the fixed per-row estimate above can't anticipate.
+        // Size the popover from the cards' real laid-out height (cards grow when AMS chips wrap).
+        // Only report when it actually changes, otherwise repeated identical resizes make the
+        // popover's bottom edge visibly pulse on every telemetry tick.
         view.layoutSubtreeIfNeeded()
         let measuredContent = cardsStack.fittingSize.height
         if measuredContent > 1 {
             let chromeAndInsets: CGFloat = 12 + 36 + 6 + 8 + 12
-            onPreferredContentSize(NSSize(width: panelWidth, height: min(900, chromeAndInsets + measuredContent)))
+            let size = NSSize(width: panelWidth, height: min(900, chromeAndInsets + measuredContent))
+            if abs(size.width - lastReportedContentSize.width) > 0.5
+                || abs(size.height - lastReportedContentSize.height) > 0.5 {
+                lastReportedContentSize = size
+                onPreferredContentSize(size)
+            }
         }
     }
+
+    private var lastReportedContentSize: NSSize = .zero
 
     private func detachCardRows() {
         for arrangedView in cardsStack.arrangedSubviews {
@@ -726,9 +732,7 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
         amsLabel.alignment = .left
         amsLabel.lineBreakMode = .byTruncatingTail
         amsLabel.widthAnchor.constraint(equalToConstant: 73).isActive = true
-        amsChips.wantsLayer = true
-        amsChips.layer?.cornerRadius = 8
-        amsChips.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.055).cgColor
+        amsChips.pillColor = NSColor.labelColor.withAlphaComponent(0.055)
         amsChips.setContentHuggingPriority(.defaultLow, for: .horizontal)   // fill the row so chips wrap
         amsChips.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let amsRow = NSStackView(views: [amsLabel, amsChips])
@@ -1170,8 +1174,20 @@ private final class WrappingChipsView: NSView {
     var horizontalSpacing: CGFloat = 2
     var verticalSpacing: CGFloat = 2
     var contentInsets = NSEdgeInsets(top: 2, left: 2, bottom: 2, right: 2)
+    var pillColor: NSColor = .clear { didSet { pill.layer?.backgroundColor = pillColor.cgColor } }
+    // The rounded background only covers the chips, not the full row width, so empty space to the
+    // right of the last chip stays transparent.
+    private let pill = NSView()
     private var chips: [NSView] = []
     private var lastLaidOutWidth: CGFloat = -1
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        pill.wantsLayer = true
+        pill.layer?.cornerRadius = 8
+        addSubview(pill)
+    }
+    required init?(coder: NSCoder) { nil }
 
     override var isFlipped: Bool { true }
 
@@ -1204,11 +1220,15 @@ private final class WrappingChipsView: NSView {
 
     @discardableResult
     private func arrange(width: CGFloat, apply: Bool) -> CGFloat {
-        guard !chips.isEmpty else { return 0 }
+        guard !chips.isEmpty else {
+            if apply { pill.isHidden = true }
+            return 0
+        }
         let maxX = width - contentInsets.right
         var x = contentInsets.left
         var y = contentInsets.top
         var rowHeight: CGFloat = 0
+        var usedRight: CGFloat = 0
         for chip in chips {
             let size = chip.fittingSize
             if x > contentInsets.left, x + size.width > maxX {
@@ -1217,10 +1237,16 @@ private final class WrappingChipsView: NSView {
                 rowHeight = 0
             }
             if apply { chip.frame = NSRect(x: x, y: y, width: size.width, height: size.height) }
+            usedRight = max(usedRight, x + size.width)
             x += size.width + horizontalSpacing
             rowHeight = max(rowHeight, size.height)
         }
-        return y + rowHeight + contentInsets.bottom
+        let totalHeight = y + rowHeight + contentInsets.bottom
+        if apply {
+            pill.isHidden = false
+            pill.frame = NSRect(x: 0, y: 0, width: usedRight + contentInsets.right, height: totalHeight)
+        }
+        return totalHeight
     }
 }
 
