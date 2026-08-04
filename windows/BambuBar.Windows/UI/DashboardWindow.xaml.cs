@@ -157,7 +157,7 @@ public partial class DashboardWindow : Window
                     Margin = new Thickness(8)
                 });
                 _renderedSerials = serials; _renderedCompact = compact;
-                AdjustHeight(compact, 0);
+                FitHeightToContent();
                 return;
             }
             var live = new Dictionary<string, ICardView>();
@@ -173,7 +173,6 @@ public partial class DashboardWindow : Window
             _views.Clear();
             foreach (var kv in live) _views[kv.Key] = kv.Value;
             _renderedSerials = serials; _renderedCompact = compact;
-            AdjustHeight(compact, _store.Printers.Count);
         }
 
         foreach (var printer in _store.Printers)
@@ -183,6 +182,10 @@ public partial class DashboardWindow : Window
                 _store.ConnectionMessages.TryGetValue(printer.Serial, out var msg);
                 view.Update(printer, t, msg, pl);
             }
+
+        // Fit the window to the cards' real height — cards vary (multiple AMS units wrap onto extra
+        // rows, expanded accordion cards), so a fixed per-card estimate clipped tall cards.
+        FitHeightToContent();
     }
 
     private void ToggleCompact()
@@ -192,25 +195,26 @@ public partial class DashboardWindow : Window
         Rebuild();
     }
 
-    private void AdjustHeight(bool compact, int count)
+    // Measures the laid-out card content and sizes the window to it (capped to the work area, with
+    // the ScrollViewer taking over beyond that). Deferred to Loaded priority so the measurement runs
+    // after WPF has arranged the cards — including AMS chips that only arrive with telemetry.
+    internal void FitHeightToContent()
     {
-        double content;
-        if (count == 0) content = 60;
-        else if (compact)
+        Dispatcher.BeginInvoke(new Action(() =>
         {
-            // Each expanded accordion row shows a full bento card beneath it; grow the window to fit
-            // it (like the macOS popover) instead of forcing the user to scroll.
-            int expanded = _views.Values.OfType<CompactRow>().Count(r => r.IsExpanded);
-            content = count * 44 + expanded * 196;
-        }
-        else content = Math.Ceiling(count / 2.0) * 182;
-        Height = Math.Min(820, 84 + content);
-        if (IsVisible)
-        {
-            var area = SystemParameters.WorkArea;
-            Left = area.Right - Width - 8;
-            Top = area.Bottom - Height - 8;
-        }
+            double content = _store.Printers.Count == 0 ? 60 : CardsPanel.ActualHeight;
+            if (content <= 0) return;
+            double max = Math.Min(1000, SystemParameters.WorkArea.Height - 24);
+            double target = Math.Min(max, 84 + content);
+            if (Math.Abs(target - Height) < 0.5) return;
+            Height = target;
+            if (IsVisible)
+            {
+                var area = SystemParameters.WorkArea;
+                Left = area.Right - Width - 8;
+                Top = area.Bottom - Height - 8;
+            }
+        }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private interface ICardView
@@ -365,7 +369,6 @@ public partial class DashboardWindow : Window
     {
         public Border Root { get; }
         public string Serial { get; }
-        public bool IsExpanded => _full is not null && _full.Root.Visibility == Visibility.Visible;
         private readonly DashboardWindow _owner;
         private readonly StackPanel _stack;
         private readonly Ellipse _dot;
@@ -450,7 +453,7 @@ public partial class DashboardWindow : Window
             _full.Root.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             _chevron.Text = show ? "⌄" : "›";
             if (show) _full.Update(_printer, _telemetry, _message, _pl);
-            _owner.AdjustHeight(true, _owner._store.Printers.Count);   // grow/shrink to fit the card
+            _owner.FitHeightToContent();   // grow/shrink to fit the expanded card
         }
 
         public void Update(SavedPrinter printer, PrinterTelemetry t, string? message, bool pl)
