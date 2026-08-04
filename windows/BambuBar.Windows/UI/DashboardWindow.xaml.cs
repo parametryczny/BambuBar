@@ -85,6 +85,7 @@ public partial class DashboardWindow : Window
         Top = area.Bottom - Height - 8;
         Show();
         Activate();
+        FitHeightToContent();   // size to content now that it's visible
     }
 
     [DllImport("dwmapi.dll")]
@@ -195,25 +196,26 @@ public partial class DashboardWindow : Window
         Rebuild();
     }
 
-    // Measures the laid-out card content and sizes the window to it (capped to the work area, with
-    // the ScrollViewer taking over beyond that). Deferred to Loaded priority so the measurement runs
-    // after WPF has arranged the cards — including AMS chips that only arrive with telemetry.
+    // Sizes the window to the cards' content height (capped to the work area, with the ScrollViewer
+    // taking over beyond that). Uses DesiredSize — the content's intrinsic height from the measure
+    // pass — not ActualHeight, which is the arranged height and can stretch to the current viewport,
+    // creating a feedback loop that grew the window on every tick. Only runs while visible, so a
+    // hidden/minimized panel never resizes.
     internal void FitHeightToContent()
     {
+        if (!IsVisible) return;
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            double content = _store.Printers.Count == 0 ? 60 : CardsPanel.ActualHeight;
+            if (!IsVisible) return;
+            double content = _store.Printers.Count == 0 ? 60 : CardsPanel.DesiredSize.Height;
             if (content <= 0) return;
             double max = Math.Min(1000, SystemParameters.WorkArea.Height - 24);
             double target = Math.Min(max, 84 + content);
-            if (Math.Abs(target - Height) < 0.5) return;
+            if (Math.Abs(target - Height) < 1) return;
             Height = target;
-            if (IsVisible)
-            {
-                var area = SystemParameters.WorkArea;
-                Left = area.Right - Width - 8;
-                Top = area.Bottom - Height - 8;
-            }
+            var area = SystemParameters.WorkArea;
+            Left = area.Right - Width - 8;
+            Top = area.Bottom - Height - 8;
         }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
