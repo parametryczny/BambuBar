@@ -34,6 +34,27 @@ public static class StatusParser
         if (Num(report, "nozzle_target_temper") is { } ntt) result.NozzleTargetTemperature = ntt;
         if (Num(report, "bed_temper") is { } bt) result.BedTemperature = bt;
         if (Num(report, "bed_target_temper") is { } btt) result.BedTargetTemperature = btt;
+        // Dual-nozzle printers (H2D) report each extruder under device.extruder.info as {id, temp},
+        // where temp packs current in the low 16 bits and target in the high 16 bits. Single-nozzle
+        // machines omit this and keep using nozzle_temper above.
+        if (report.TryGetProperty("device", out var dev) && dev.ValueKind == JsonValueKind.Object
+            && dev.TryGetProperty("extruder", out var extruder) && extruder.ValueKind == JsonValueKind.Object
+            && extruder.TryGetProperty("info", out var extruderInfo) && extruderInfo.ValueKind == JsonValueKind.Array)
+        {
+            double? current0 = null, target0 = null, current1 = null, target1 = null;
+            foreach (var item in extruderInfo.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                if (Int(item, "id") is not { } id || Int(item, "temp") is not { } packed) continue;
+                double current = packed & 0xFFFF;
+                double target = (packed >> 16) & 0xFFFF;
+                if (id == 0) { current0 = current; target0 = target; }
+                else if (id == 1) { current1 = current; target1 = target; }
+            }
+            if (current0 is { }) { result.NozzleTemperature = current0; result.NozzleTargetTemperature = target0; }
+            result.NozzleTemperature2 = current1;
+            result.NozzleTargetTemperature2 = target1;
+        }
         // Modern firmware reports the real chamber temperature under device.ctc.info.temp;
         // printers without a chamber sensor (A1, P1) omit it and chamber_temper is only a fixed
         // placeholder there, so accept the legacy field only as a plausible fallback.

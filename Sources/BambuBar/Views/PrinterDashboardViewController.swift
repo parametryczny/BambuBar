@@ -892,7 +892,14 @@ private final class PrinterCardView: NSGlassEffectView, NSDraggingSource {
         lastState = telemetry.state
         let eta = displayedRemainingMinutes.map(format) ?? "—"
         let layer = telemetry.currentLayer.flatMap { current in telemetry.totalLayers.map { "\(current)/\($0)" } } ?? "—"
-        let nozzle = temperature(telemetry.nozzleTemperature, telemetry.nozzleTargetTemperature)
+        let nozzle: String
+        if let second = telemetry.nozzleTemperature2 {
+            // Dual nozzle (H2D): show both current temperatures, e.g. "250°·48°".
+            let left = telemetry.nozzleTemperature.map { "\(Int($0.rounded()))°" } ?? "—"
+            nozzle = "\(left)·\(Int(second.rounded()))°"
+        } else {
+            nozzle = temperature(telemetry.nozzleTemperature, telemetry.nozzleTargetTemperature)
+        }
         let bed = temperature(telemetry.bedTemperature, telemetry.bedTargetTemperature)
         etaMetric.value = eta
         layerMetric.value = layer

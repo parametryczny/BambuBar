@@ -37,6 +37,9 @@ struct PrinterTelemetry: Equatable, Sendable {
     var remainingMinutes: Int?
     var nozzleTemperature: Double?
     var nozzleTargetTemperature: Double?
+    // Second nozzle on dual-nozzle printers (H2D); nil on single-nozzle machines.
+    var nozzleTemperature2: Double?
+    var nozzleTargetTemperature2: Double?
     var bedTemperature: Double?
     var bedTargetTemperature: Double?
     var chamberTemperature: Double?

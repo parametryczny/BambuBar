@@ -46,6 +46,9 @@ public sealed class PrinterTelemetry
     public int? RemainingMinutes { get; set; }
     public double? NozzleTemperature { get; set; }
     public double? NozzleTargetTemperature { get; set; }
+    // Second nozzle on dual-nozzle printers (H2D); null on single-nozzle machines.
+    public double? NozzleTemperature2 { get; set; }
+    public double? NozzleTargetTemperature2 { get; set; }
     public double? BedTemperature { get; set; }
     public double? BedTargetTemperature { get; set; }
     public double? ChamberTemperature { get; set; }
@@ -69,6 +72,8 @@ public sealed class PrinterTelemetry
             RemainingMinutes = RemainingMinutes,
             NozzleTemperature = NozzleTemperature,
             NozzleTargetTemperature = NozzleTargetTemperature,
+            NozzleTemperature2 = NozzleTemperature2,
+            NozzleTargetTemperature2 = NozzleTargetTemperature2,
             BedTemperature = BedTemperature,
             BedTargetTemperature = BedTargetTemperature,
             ChamberTemperature = ChamberTemperature,

@@ -346,7 +346,9 @@ public partial class DashboardWindow : Window
             _percent.Text = $"{t.Progress}%";
             _eta.Text = FormatEta(t.RemainingMinutes);
             _layers.Text = t.CurrentLayer is { } cl && t.TotalLayers is { } tl ? $"{cl}/{tl}" : "—";
-            _nozzle.Text = FormatTemp(t.NozzleTemperature, t.NozzleTargetTemperature);
+            _nozzle.Text = t.NozzleTemperature2 is { } n2 && t.NozzleTemperature is { } n1
+                ? $"{n1.ToString("0", CultureInfo.InvariantCulture)}°·{n2.ToString("0", CultureInfo.InvariantCulture)}°"  // dual nozzle (H2D)
+                : FormatTemp(t.NozzleTemperature, t.NozzleTargetTemperature);
             _bed.Text = FormatTemp(t.BedTemperature, t.BedTargetTemperature);
 
             _ams.Children.Clear();
